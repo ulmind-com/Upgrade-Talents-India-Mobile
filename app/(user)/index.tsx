@@ -17,6 +17,7 @@ import { FadeInUp } from "@/components/FadeInUp";
 import { useIntro, Intro, Reveal, Sheen, Drift } from "@/components/motion";
 import { SpotlightCarousel } from "@/components/SpotlightCarousel";
 import { LocationPickerModal, useUserLocation, type LocationInfo } from "@/components/LocationPickerModal";
+import { GrandSponsorModal } from "@/components/GrandSponsorModal";
 import { ExploreSection } from "@/components/ExploreSection";
 import { StageBand, type GalleryItem } from "@/components/StageBand";
 import { PartnerMarquee, ReviewCard, ContestBand } from "@/components/showcase";
@@ -145,6 +146,9 @@ export default function Home() {
         onClose={() => setLocModalOpen(false)}
       />
 
+      {/* Grand Sponsor Announcement Modal */}
+      <GrandSponsorModal popup={(hp as any).grand_sponsor_popup} />
+
       {/* Top Bar Header (District style with Location Selector & Profile) */}
       <View
         style={{
@@ -249,7 +253,7 @@ export default function Home() {
       >
         {/* Search Input Bar */}
         <Pressable
-          onPress={() => router.push("/(user)/events")}
+          onPress={() => router.push("/(more)/search")}
           style={{
             marginHorizontal: 20,
             marginTop: 10,

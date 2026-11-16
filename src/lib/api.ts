@@ -422,7 +422,38 @@ export const publicApi = {
   importantLinks: () => apiFetch<any[]>("/api/v1/important-links"),
   competitions: (p: { skip?: number; limit?: number; search?: string } = {}) =>
     apiFetch<any[]>("/api/activities/competitions", { query: { limit: 50, ...p } }),
-  leaderboard: (id: string) => apiFetch<{ ranking_mode?: string; leaderboard?: any[] }>(`/api/v1/competitions/${id}/leaderboard`),
+  leaderboard: (id: string) =>
+    apiFetch<{ ranking_mode?: string; leaderboard?: any[]; categories?: string[]; category_leaderboards?: Record<string, any[]> }>(
+      `/api/v1/competitions/${id}/leaderboard`
+    ).catch(() =>
+      apiFetch<any>(`/api/public/competitions/${id}/leaderboard`)
+    ),
+  rounds: (id: string) =>
+    apiFetch<any>(`/api/v1/competitions/${id}/rounds`).catch(() =>
+      apiFetch<any>(`/api/public/competitions/${id}/rounds`)
+    ),
+  roundLeaderboard: (id: string, roundNumber: number, category?: string) =>
+    apiFetch<{
+      competition_id?: string;
+      round_number?: number;
+      round_name?: string;
+      round_status?: string;
+      is_final_round?: boolean;
+      advancing_count?: number;
+      current_active_round?: number;
+      total_rounds?: number;
+      rounds?: any[];
+      category?: string;
+      categories?: string[];
+      leaderboard?: any[];
+      category_leaderboards?: Record<string, any[]>;
+    }>(`/api/v1/competitions/${id}/rounds/${roundNumber}/leaderboard`, {
+      query: category ? { category } : undefined,
+    }).catch(() =>
+      apiFetch<any>(`/api/public/competitions/${id}/rounds/${roundNumber}/leaderboard`, {
+        query: category ? { category } : undefined,
+      })
+    ),
   verifyCertificate: (token: string) => apiFetch<any>(`/api/public/certificates/verify/${encodeURIComponent(token)}`),
 };
 

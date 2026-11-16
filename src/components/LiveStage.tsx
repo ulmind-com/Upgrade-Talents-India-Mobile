@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { View, Animated, Easing } from "react-native";
+import { View, Animated, Easing, Pressable } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { Radio, Mic, ListOrdered, MapPin } from "lucide-react-native";
+import { Radio, Mic, ListOrdered, MapPin, ChevronRight, Users } from "lucide-react-native";
 import { useTheme } from "@/theme/ThemeProvider";
 import { useSession } from "@/context/Session";
 import { competeApi, publicCompetitionsApi, safe } from "@/lib/api";
@@ -10,6 +10,7 @@ import { Avatar } from "@/components/Avatar";
 import { VerifiedTick } from "@/components/VerifiedBadge";
 import { Pulse } from "@/components/motion";
 import { DiagonalStripes } from "@/components/patterns";
+import { LiveStageLineupModal } from "@/components/LiveStageLineupModal";
 
 const STAGE = ["#2a0a1b", "#1a0a2e", "#0a0a1f"];
 const SPOT = "#f0407e";
@@ -27,6 +28,7 @@ export function LiveStage({ compId, live }: { compId: string; live?: boolean }) 
   const { c } = useTheme();
   const { user } = useSession();
   const [stage, setStage] = useState<any | null>(null);
+  const [lineupModalOpen, setLineupModalOpen] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -96,12 +98,23 @@ export function LiveStage({ compId, live }: { compId: string; live?: boolean }) 
         {/* the lineup */}
         {lineup.length ? (
           <View style={{ marginTop: 14 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 7, marginBottom: 10 }}>
-              <ListOrdered size={13} color="rgba(255,255,255,0.7)" />
-              <Txt size={10.5} font="monoMed" tracking={2} uppercase style={{ color: "rgba(255,255,255,0.7)" }}>Running order · {lineup.length}</Txt>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
+                <ListOrdered size={13} color="rgba(255,255,255,0.7)" />
+                <Txt size={10.5} font="monoMed" tracking={2} uppercase style={{ color: "rgba(255,255,255,0.7)" }}>Running order · {lineup.length}</Txt>
+              </View>
+
+              <Pressable
+                onPress={() => setLineupModalOpen(true)}
+                hitSlop={8}
+                style={{ flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.12)" }}
+              >
+                <Txt size={11} font="sansBold" style={{ color: "#fff" }}>View queue</Txt>
+                <ChevronRight size={13} color="#fff" />
+              </Pressable>
             </View>
             <View style={{ gap: 7 }}>
-              {lineup.slice(0, 10).map((p, i) => {
+              {lineup.slice(0, 5).map((p, i) => {
                 const onStage = email(p.user_email) === email(current?.user_email);
                 const mine = user?.email && email(p.user_email) === email(user.email);
                 return (
@@ -127,6 +140,14 @@ export function LiveStage({ compId, live }: { compId: string; live?: boolean }) 
           </View>
         ) : null}
       </LinearGradient>
+
+      {/* Full Live Stage Lineup & Performance Queue Modal */}
+      <LiveStageLineupModal
+        visible={lineupModalOpen}
+        stageData={stage}
+        compTitle={stage?.competition_title}
+        onClose={() => setLineupModalOpen(false)}
+      />
     </View>
   );
 }
