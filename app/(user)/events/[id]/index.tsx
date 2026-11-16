@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { View, Text, Pressable, Animated, Share } from "react-native";
+import { View, Text, Pressable, Animated, Share, Linking } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -184,17 +184,26 @@ export default function EventDetail() {
             ))}
           </View>
 
-          {/* Venue card */}
+          {/* Venue card with tap to navigate */}
           {ev.venue ? (
-            <Card style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
-              <View style={{ width: 46, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: c.surface2 }}>
-                <MapPin size={20} color={c.accent} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Txt size={10.5} font="monoMed" tone="subtle" tracking={2} uppercase>Venue</Txt>
-                <Txt size={15} font="sansBold" numberOfLines={2} style={{ marginTop: 2 }}>{ev.venue}</Txt>
-              </View>
-            </Card>
+            <Pressable
+              onPress={() => {
+                const q = encodeURIComponent(`${ev.venue}`);
+                Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${q}`).catch(() => {});
+              }}
+              style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.985 : 1 }] })}
+            >
+              <Card style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+                <View style={{ width: 46, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: c.surface2 }}>
+                  <MapPin size={20} color={c.accent} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Txt size={10.5} font="monoMed" tone="subtle" tracking={2} uppercase>Venue · Tap for directions</Txt>
+                  <Txt size={15} font="sansBold" numberOfLines={2} style={{ marginTop: 2 }}>{ev.venue}</Txt>
+                </View>
+                <ChevronRight size={18} color={c.fgSubtle} />
+              </Card>
+            </Pressable>
           ) : null}
 
           {/* Related */}
