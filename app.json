@@ -1,25 +1,71 @@
 {
   "expo": {
-    "name": "Upgrade-Talents-India-App",
+    "name": "Upgrade Talents India",
     "slug": "Upgrade-Talents-India-App",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "scheme": "uti",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#091124",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "in.upgradetalents.app"
     },
     "android": {
+      "package": "in.upgradetalents.app",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#091124",
+        "foregroundImage": "./assets/android-icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Upgrade Talents needs access to your photos to upload your ID proof and profile picture."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Upgrade Talents uses the camera to scan ticket and VIP pass QR codes at the gate."
+        }
+      ],
+      "expo-audio",
+      "expo-sharing",
+      "expo-web-browser",
+      "expo-image",
+      "expo-status-bar",
+      "expo-asset",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#091124",
+          "image": "./assets/splash-icon.png",
+          "resizeMode": "contain",
+          "imageWidth": 200
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "apiBaseUrl": "https://event-management-backend-nijj.onrender.com",
+      "google": {
+        "webClientId": "",
+        "androidClientId": "",
+        "iosClientId": ""
+      }
     }
   }
 }
