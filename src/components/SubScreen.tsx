@@ -53,12 +53,12 @@ export function SubScreen({
             alignItems: "center",
             justifyContent: "center",
             borderWidth: 1,
-            borderColor: name === "dark" ? "rgba(255, 255, 255, 0.12)" : c.border,
-            backgroundColor: name === "dark" ? "rgba(20, 22, 30, 0.9)" : c.surface,
+            borderColor: "rgba(255, 255, 255, 0.12)",
+            backgroundColor: "rgba(20, 22, 30, 0.9)",
             transform: [{ scale: pressed ? 0.94 : 1 }],
           })}
         >
-          <ArrowLeft size={20} color={c.fg} />
+          <ArrowLeft size={20} color="#FFFFFF" />
         </Pressable>
         {right}
       </View>
@@ -76,7 +76,7 @@ export function SubScreen({
         size={28}
         font="display"
         tracking={-0.6}
-        style={{ color: name === "dark" ? "#FFFFFF" : c.fg, marginTop: eyebrow ? 6 : 16 }}
+        style={{ color: "#FFFFFF", marginTop: eyebrow ? 6 : 16 }}
       >
         {title}
       </Txt>
@@ -84,16 +84,12 @@ export function SubScreen({
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: c.bg }}>
-      <StatusBar style={c.barStyle === "light" ? "light" : "dark"} />
+    <View style={{ flex: 1, backgroundColor: "#08090C" }}>
+      <StatusBar style="light" />
 
       {/* Zomato District Signature Ambient Violet Glow at the top */}
       <LinearGradient
-        colors={
-          name === "dark"
-            ? ["rgba(139, 92, 246, 0.32)", "rgba(139, 92, 246, 0.08)", "transparent"]
-            : ["rgba(139, 92, 246, 0.16)", "rgba(139, 92, 246, 0.04)", "transparent"]
-        }
+        colors={["rgba(139, 92, 246, 0.32)", "rgba(139, 92, 246, 0.08)", "transparent"]}
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
         style={{
@@ -105,7 +101,6 @@ export function SubScreen({
           pointerEvents: "none",
         }}
       />
-      <Glow color={c.spot1} size={320} top={-120} right={-100} />
 
       <SafeAreaView edges={["top"]} style={{ flex: 1 }}>
         {scroll ? (

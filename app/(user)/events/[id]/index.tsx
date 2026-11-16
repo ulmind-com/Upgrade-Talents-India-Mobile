@@ -75,7 +75,7 @@ export default function EventDetail() {
   const share = () => setShareOpen(true);
 
   return (
-    <View style={{ flex: 1, backgroundColor: c.bg }}>
+    <View style={{ flex: 1, backgroundColor: "#08090C" }}>
       <StatusBar style="light" />
 
       <Animated.ScrollView
@@ -107,7 +107,7 @@ export default function EventDetail() {
         </View>
 
         {/* Content sheet — overlaps the hero with a rounded top */}
-        <View style={{ backgroundColor: c.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28, marginTop: -26, paddingTop: 26, paddingHorizontal: 20, gap: 24 }}>
+        <View style={{ backgroundColor: "#08090C", borderTopLeftRadius: 28, borderTopRightRadius: 28, marginTop: -26, paddingTop: 26, paddingHorizontal: 20, gap: 24 }}>
           {/* grab handle */}
           <View style={{ alignSelf: "center", width: 42, height: 5, borderRadius: 999, backgroundColor: c.border, marginTop: -14 }} />
 
@@ -223,8 +223,8 @@ export default function EventDetail() {
       </Animated.ScrollView>
 
       {/* Animated glass header (fades in on scroll) */}
-      <Animated.View pointerEvents="none" style={{ position: "absolute", top: 0, left: 0, right: 0, height: insets.top + 54, backgroundColor: c.bg, borderBottomWidth: 1, borderBottomColor: c.border, opacity: headerOpacity, justifyContent: "flex-end", paddingBottom: 12, paddingHorizontal: 70 }}>
-        <Txt size={16} font="sansBold" align="center" numberOfLines={1}>{ev.title}</Txt>
+      <Animated.View pointerEvents="none" style={{ position: "absolute", top: 0, left: 0, right: 0, height: insets.top + 54, backgroundColor: "#08090C", borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.1)", opacity: headerOpacity, justifyContent: "flex-end", paddingBottom: 12, paddingHorizontal: 70 }}>
+        <Txt size={16} font="sansBold" align="center" numberOfLines={1} style={{ color: "#fff" }}>{ev.title}</Txt>
       </Animated.View>
 
       {/* Floating back + share */}

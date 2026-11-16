@@ -20,18 +20,16 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [name, setName] = useState<ThemeName>("dark");
 
   useEffect(() => {
-    SecureStore.getItemAsync(THEME_KEY)
-      .then((v) => {
-        if (v === "blue" || v === "dark") setName(v);
-      })
-      .catch(() => {});
+    // Permanently enforce Zomato District Dark mode and clean any legacy light mode preference
+    SecureStore.setItemAsync(THEME_KEY, "dark").catch(() => {});
+    setName("dark");
   }, []);
 
-  const setTheme = (t: ThemeName) => {
-    setName(t);
-    SecureStore.setItemAsync(THEME_KEY, t).catch(() => {});
+  const setTheme = (_t: ThemeName) => {
+    setName("dark");
+    SecureStore.setItemAsync(THEME_KEY, "dark").catch(() => {});
   };
-  const toggle = () => setTheme(name === "dark" ? "blue" : "dark");
+  const toggle = () => setTheme("dark");
 
   const value = useMemo<ThemeCtx>(
     () => ({ name, c: PALETTES[name], radius, space, fonts, toggle, setTheme }),

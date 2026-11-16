@@ -121,60 +121,10 @@ export const DARK: Palette = {
 };
 
 export const BLUE: Palette = {
-  bg: "#fff7f1",
-  bgElevated: "#fffaf6",
-  surface: "#ffffff",
-  surface2: "#fff0e6",
-  surfaceGlass: "rgba(255,255,255,0.82)",
-  border: "rgba(120,60,20,0.12)",
-  borderStrong: "rgba(120,60,20,0.26)",
-
-  fg: "#2a1810",
-  fgMuted: "#6b5546",
-  fgSubtle: "#957d6c",
-
-  primary: "#e8440f",
-  primaryHover: "#cf380a",
-  onPrimary: "#ffffff",
-
-  accent: "#ff7a33",
-  accentHover: "#f0471e",
-  onAccent: "#ffffff",
-
-  cyan: "#0a8ca8",
-  lime: "#4e8f00",
-
-  success: "#11804a",
-  warning: "#9a5a00",
-  danger: "#c01b1b",
-
-  ring: "#e8440f",
-  scrim: "rgba(60,30,12,0.5)",
-
-  gradBrand: ["#ffab52", "#ff7a33", "#f0471e", "#e8440f"],
-
-  spot1: "rgba(255,122,51,0.2)",
-  spot2: "rgba(255,154,77,0.16)",
-  spot3: "rgba(240,71,30,0.1)",
-
-  stageGrad: ["#1340ff", "#2a2ee6", "#4723c8", "#5e1fa8", "#6a1d8c"],
-  stageBloom: "rgba(120,170,255,0.4)",
-
-  acid: "#38e8ff",
-  acidInk: "#04121c",
-  streetBg: "#060d22",
-  streetCard: "#0f1836",
-  streetLine: "rgba(255,255,255,0.26)",
-  streetRed: "#1b46ff",
-
-  theaterBg: "#0d1540",
-  theaterDeep: "#060c2b",
-  theaterPink: "#1b46ff",
-
-  barStyle: "dark",
+  ...DARK,
 };
 
-export const PALETTES: Record<ThemeName, Palette> = { dark: DARK, blue: BLUE };
+export const PALETTES: Record<ThemeName, Palette> = { dark: DARK, blue: DARK };
 
 /* ── Scale (ported from the design system) ─────────────── */
 export const radius = { xs: 6, sm: 10, md: 16, lg: 24, xl: 32, "2xl": 44, full: 9999 };

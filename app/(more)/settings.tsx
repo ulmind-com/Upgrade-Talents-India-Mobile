@@ -58,9 +58,7 @@ export default function Settings() {
             <Txt size={13} font="monoMed" tone="subtle" tracking={2} uppercase>Appearance</Txt>
           </View>
           <Divider />
-          <ThemeRow active={name === "dark"} label="Dark stage" icon={<Moon size={18} color={c.fg} />} onPress={() => setTheme("dark")} />
-          <Divider style={{ marginLeft: 50 }} />
-          <ThemeRow active={name === "blue"} label="Daylight" icon={<Sun size={18} color={c.fg} />} onPress={() => setTheme("blue")} />
+          <ThemeRow active={true} label="Zomato District AMOLED Dark (Active)" icon={<Moon size={18} color="#C9F24A" />} onPress={() => setTheme("dark")} />
         </Card>
 
         <Button

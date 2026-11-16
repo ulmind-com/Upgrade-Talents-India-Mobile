@@ -33,36 +33,28 @@ export function Screen({
   style?: StyleProp<ViewStyle>;
   bg?: string;
 }) {
-  const { c, name } = useTheme();
-  const background = bg ?? c.bg;
+  const { c } = useTheme();
+  const background = bg ?? "#08090C";
 
   return (
     <View style={{ flex: 1, backgroundColor: background }}>
-      <StatusBar style={c.barStyle === "light" ? "light" : "dark"} />
+      <StatusBar style="light" />
 
       {/* Zomato District Signature Ambient Violet Glow at the top */}
       {glow ? (
-        <>
-          <LinearGradient
-            colors={
-              name === "dark"
-                ? ["rgba(139, 92, 246, 0.32)", "rgba(139, 92, 246, 0.08)", "transparent"]
-                : ["rgba(139, 92, 246, 0.16)", "rgba(139, 92, 246, 0.04)", "transparent"]
-            }
-            start={{ x: 0.5, y: 0 }}
-            end={{ x: 0.5, y: 1 }}
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              height: 340,
-              pointerEvents: "none",
-            }}
-          />
-          <Glow color={c.spot1} size={360} top={-120} left={-100} />
-          <Glow color={c.spot2} size={280} top={140} right={-120} />
-        </>
+        <LinearGradient
+          colors={["rgba(139, 92, 246, 0.32)", "rgba(139, 92, 246, 0.08)", "transparent"]}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 340,
+            pointerEvents: "none",
+          }}
+        />
       ) : null}
 
       <SafeAreaView edges={edges} style={[{ flex: 1 }, style]}>
