@@ -71,9 +71,9 @@ export function Coverflow({ events, onOpen }: { events: EventItem[]; onOpen: (id
                           <Txt size={11.5} style={{ color: "rgba(255,255,255,0.8)" }} numberOfLines={1}>{ev.venue}</Txt>
                         </View>
                       ) : <View style={{ flex: 1 }} />}
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#fff", borderRadius: 999, paddingHorizontal: 11, height: 30 }}>
-                        <Ticket size={13} color="#111" />
-                        <Txt size={12} font="sansBold" style={{ color: "#111" }}>{formatINR(ev.price)}</Txt>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#FF385C", borderRadius: 999, paddingHorizontal: 12, height: 30 }}>
+                        <Ticket size={13} color="#ffffff" />
+                        <Txt size={12} font="sansBold" style={{ color: "#ffffff" }}>{formatINR(ev.price)}</Txt>
                       </View>
                     </View>
                   </View>

@@ -1,15 +1,18 @@
 import React, { useMemo, useState } from "react";
-import { View, Pressable, Animated, Easing } from "react-native";
+import { View, Pressable, Animated, Easing, TextInput, ScrollView } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
-import { Trophy, Crown, Medal, Vote, Gavel, Hourglass, ShieldCheck, MessageSquareQuote, Play, Pause } from "lucide-react-native";
+import {
+  Trophy, Crown, Medal, Vote, Gavel, Hourglass, ShieldCheck,
+  MessageSquareQuote, Play, Pause, Award, Search, ArrowLeft,
+} from "lucide-react-native";
 import { useAudioPlayer } from "expo-audio";
 import { SubScreen } from "@/components/SubScreen";
 import { useTheme } from "@/theme/ThemeProvider";
 import { useSession } from "@/context/Session";
-import { competeApi, publicCompetitionsApi, assetUrl, safe } from "@/lib/api";
+import { competeApi, publicCompetitionsApi, extrasApi, assetUrl, safe } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
-import { Txt, Skeleton, EmptyState, Badge } from "@/components/ui";
+import { Txt, Skeleton, EmptyState, Badge, Button } from "@/components/ui";
 import { Avatar } from "@/components/Avatar";
 import { VerifiedTick } from "@/components/VerifiedBadge";
 import { DottedGrid } from "@/components/patterns";
@@ -41,23 +44,66 @@ export default function CompetitionResults() {
     { refetchOnFocus: true }
   );
 
+  const certsQ = useAsync(
+    () => (user ? safe(extrasApi.myCertificates(), []) : Promise.resolve([])),
+    [user?.email]
+  );
+
+  const [search, setSearch] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("ALL");
+
   const snap: any = res.data || {};
-  const rows: Row[] = useMemo(() => {
+  const allRows: Row[] = useMemo(() => {
     const lb = Array.isArray(snap.leaderboard) ? snap.leaderboard : Array.isArray(snap.standings) ? snap.standings : [];
     return [...lb].sort((a, b) => Number(a.rank ?? 99) - Number(b.rank ?? 99));
   }, [snap]);
-  const published = snap.is_published !== false && rows.length > 0;
+
+  const categories: string[] = useMemo(() => {
+    const set = new Set<string>();
+    allRows.forEach((r) => { if (r.category) set.add(r.category); });
+    if (Array.isArray(snap.categories)) {
+      snap.categories.forEach((cat: string) => { if (cat) set.add(cat); });
+    }
+    return set.size > 0 ? ["ALL", ...Array.from(set)] : [];
+  }, [allRows, snap.categories]);
+
+  const rows: Row[] = useMemo(() => {
+    let list = allRows;
+    if (selectedCategory !== "ALL") {
+      list = list.filter((r) => r.category === selectedCategory);
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter((r) => rowName(r).toLowerCase().includes(q) || String(r.user_email || r.email || "").toLowerCase().includes(q));
+    }
+    return list;
+  }, [allRows, selectedCategory, search]);
+
+  const published = snap.is_published !== false && allRows.length > 0;
   const title = comp.data?.title || comp.data?.name || "Competition";
 
   const [first, second, third] = rows;
   const rest = rows.slice(3);
 
-  // The signed-in member's own row → their judge feedback, if any.
+  // The signed-in member's own row → their judge feedback & certificate, if any.
   const myRow = useMemo(() => {
     if (!user?.email) return null;
     const me = String(user.email).toLowerCase();
-    return rows.find((r) => String(r.user_email || r.email || "").toLowerCase() === me) || null;
-  }, [rows, user?.email]);
+    return allRows.find((r) => String(r.user_email || r.email || "").toLowerCase() === me) || null;
+  }, [allRows, user?.email]);
+
+  const myCert = useMemo(() => {
+    const raw = certsQ.data;
+    const list = Array.isArray(raw) ? raw : Array.isArray((raw as any)?.certificates) ? (raw as any).certificates : [];
+    return (
+      list.find(
+        (c: any) =>
+          String(c.activity_id || c.competition_id) === String(id) ||
+          String(c.activity_title || "").toLowerCase().trim() === String(title || "").toLowerCase().trim()
+      ) || null
+    );
+  }, [certsQ.data, id, title]);
+
   const fb = useAsync(
     () => (myRow?.submission_id ? safe(publicCompetitionsApi.feedbacks(String(id), String(myRow.submission_id)), []) : Promise.resolve([])),
     [id, myRow?.submission_id]
@@ -69,7 +115,7 @@ export default function CompetitionResults() {
       eyebrow="Official results"
       title={title}
       refreshing={res.refreshing}
-      onRefresh={() => { res.refresh(); comp.refresh(); }}
+      onRefresh={() => { res.refresh(); comp.refresh(); certsQ.refresh(); }}
     >
       {res.loading ? (
         <View style={{ gap: 14 }}>
@@ -77,13 +123,109 @@ export default function CompetitionResults() {
           {[0, 1, 2].map((i) => <Skeleton key={i} h={64} radius={16} />)}
         </View>
       ) : !published ? (
-        <EmptyState
-          icon={<Hourglass size={26} color={c.fgMuted} />}
-          title="Results not out yet"
-          subtitle="The final standings will appear here the moment judging closes and results are published."
-        />
+        <View style={{ gap: 20 }}>
+          <EmptyState
+            icon={<Hourglass size={26} color={c.fgMuted} />}
+            title="Results pending publication"
+            subtitle="The official rankings and scores are currently being reviewed and finalized by the judging panel."
+          />
+          <View style={{ flexDirection: "row", gap: 10, justifyContent: "center" }}>
+            <Button
+              label="Back to Competition"
+              variant="outline"
+              size="sm"
+              onPress={() => router.push(`/(more)/competitions/${id}`)}
+            />
+            <Button
+              label="Provisional Leaderboard"
+              size="sm"
+              onPress={() => router.push({ pathname: "/(more)/leaderboard", params: { competition: String(id) } })}
+            />
+          </View>
+        </View>
       ) : (
         <View style={{ gap: 18 }}>
+          {/* ── Current Participant Spotlight ── */}
+          {myRow ? (
+            <Intro t={intro} at={0.04} span={0.4} y={16}>
+              <View
+                style={{
+                  borderRadius: 20,
+                  borderWidth: 1.5,
+                  borderColor: "#FF385C",
+                  backgroundColor: "#14161E",
+                  padding: 16,
+                  shadowColor: "#FF385C",
+                  shadowOpacity: 0.25,
+                  shadowRadius: 12,
+                  elevation: 6,
+                }}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                    <View
+                      style={{
+                        width: 46,
+                        height: 46,
+                        borderRadius: 14,
+                        backgroundColor: "#FF385C",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Txt size={18} font="display" style={{ color: "#ffffff" }}>
+                        #{myRow.rank ?? "—"}
+                      </Txt>
+                    </View>
+                    <View>
+                      <Txt size={10} font="monoMed" tone="accent" tracking={1.5} uppercase>
+                        Your Performance Summary
+                      </Txt>
+                      <Txt size={15} font="sansBold" style={{ color: "#ffffff", marginTop: 2 }}>
+                        {user?.name || user?.email}
+                      </Txt>
+                    </View>
+                  </View>
+                  {myCert ? (
+                    <Pressable
+                      onPress={() => router.push("/(more)/certificates")}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 6,
+                        backgroundColor: "#C9F24A",
+                        paddingHorizontal: 12,
+                        paddingVertical: 7,
+                        borderRadius: 999,
+                      }}
+                    >
+                      <Award size={13} color="#08090C" />
+                      <Txt size={11.5} font="sansBold" style={{ color: "#08090C" }}>
+                        Certificate
+                      </Txt>
+                    </Pressable>
+                  ) : null}
+                </View>
+
+                {/* Score Pills */}
+                <View style={{ flexDirection: "row", gap: 8, marginTop: 14 }}>
+                  <View style={{ flex: 1, backgroundColor: "#08090C", borderRadius: 12, padding: 10, alignItems: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" }}>
+                    <Txt size={17} font="sansExt" tone="accent">{rowScore(myRow).toFixed(1)}</Txt>
+                    <Txt size={9.5} font="monoMed" tone="subtle" uppercase tracking={1} style={{ marginTop: 2 }}>Final Score</Txt>
+                  </View>
+                  <View style={{ flex: 1, backgroundColor: "#08090C", borderRadius: 12, padding: 10, alignItems: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" }}>
+                    <Txt size={17} font="sansExt" style={{ color: "#ffffff" }}>{Number(myRow.judge_score ?? myRow.raw_judge_score ?? 0).toFixed(1)}</Txt>
+                    <Txt size={9.5} font="monoMed" tone="subtle" uppercase tracking={1} style={{ marginTop: 2 }}>Judge Score</Txt>
+                  </View>
+                  <View style={{ flex: 1, backgroundColor: "#08090C", borderRadius: 12, padding: 10, alignItems: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" }}>
+                    <Txt size={17} font="sansExt" style={{ color: "#ffffff" }}>{Number(myRow.audience_votes ?? myRow.raw_audience_votes ?? 0).toLocaleString("en-IN")}</Txt>
+                    <Txt size={9.5} font="monoMed" tone="subtle" uppercase tracking={1} style={{ marginTop: 2 }}>Votes</Txt>
+                  </View>
+                </View>
+              </View>
+            </Intro>
+          ) : null}
+
           {/* ── The podium ── */}
           <Intro t={intro} at={0} span={0.5} y={20}>
             <View style={{ borderRadius: 26, overflow: "hidden" }}>
@@ -114,6 +256,62 @@ export default function CompetitionResults() {
               </Txt>
             </View>
           </Intro>
+
+          {/* ── Category Filters & Search ── */}
+          {categories.length > 0 || allRows.length > 4 ? (
+            <View style={{ gap: 12 }}>
+              {categories.length > 0 ? (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                  {categories.map((cat) => {
+                    const active = selectedCategory === cat;
+                    return (
+                      <Pressable
+                        key={cat}
+                        onPress={() => setSelectedCategory(cat)}
+                        style={{
+                          paddingHorizontal: 14,
+                          paddingVertical: 7,
+                          borderRadius: 999,
+                          backgroundColor: active ? "#FF385C" : "#14161E",
+                          borderWidth: 1,
+                          borderColor: active ? "#FF385C" : "rgba(255,255,255,0.1)",
+                        }}
+                      >
+                        <Txt size={12} font="sansBold" style={{ color: active ? "#ffffff" : "#9ea3b8" }}>
+                          {cat}
+                        </Txt>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              ) : null}
+
+              {allRows.length > 4 ? (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 10,
+                    backgroundColor: "#14161E",
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: "rgba(255, 255, 255, 0.1)",
+                    paddingHorizontal: 12,
+                    height: 42,
+                  }}
+                >
+                  <Search size={16} color="#6b728a" />
+                  <TextInput
+                    value={search}
+                    onChangeText={setSearch}
+                    placeholder="Search contestants…"
+                    placeholderTextColor="#6b728a"
+                    style={{ flex: 1, color: "#ffffff", fontSize: 13.5 }}
+                  />
+                </View>
+              ) : null}
+            </View>
+          ) : null}
 
           {/* ── Your judge feedback ── */}
           {feedbacks.length ? (

@@ -85,11 +85,11 @@ function StageGallery({ items }: { items: GalleryItem[] }) {
               transform: [{ translateX: tx }, { translateY: ty }, { scale: sc }, { rotate: ro }],
             }}
           >
-            <View style={{ width: CARD_W, backgroundColor: "#fff", borderRadius: 20, padding: 8, shadowColor: "#000", shadowOpacity: 0.4, shadowRadius: 18, shadowOffset: { width: 0, height: 12 }, elevation: 10 }}>
+            <View style={{ width: CARD_W, backgroundColor: "#14161E", borderRadius: 20, padding: 8, borderWidth: 1, borderColor: "rgba(255,255,255,0.12)", shadowColor: "#000", shadowOpacity: 0.6, shadowRadius: 18, shadowOffset: { width: 0, height: 12 }, elevation: 10 }}>
               <View style={{ height: CARD_H, borderRadius: 14, overflow: "hidden" }}>
                 <AppImage uri={item.uri} seed={(top + p) * 7 + 1} style={{ width: "100%", height: "100%" }} />
               </View>
-              <Txt size={15} font="sansExt" style={{ color: "#161616", marginTop: 8, marginBottom: 2, marginLeft: 2 }} numberOfLines={1}>{item.label}</Txt>
+              <Txt size={15} font="sansExt" style={{ color: "#ffffff", marginTop: 8, marginBottom: 2, marginLeft: 2 }} numberOfLines={1}>{item.label}</Txt>
             </View>
           </Animated.View>
         );
@@ -127,9 +127,9 @@ export function StageBand({ items, onExplore, bottomBleed = 0 }: {
         <StageGallery items={items} />
 
         <View style={{ paddingHorizontal: 20 }}>
-          <Pressable onPress={onExplore} style={{ alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#fff", borderRadius: 999, paddingLeft: 20, paddingRight: 14, height: 50 }}>
-            <Txt size={14} font="sansBold" style={{ color: "#161616" }} uppercase tracking={1}>Open gallery</Txt>
-            <View style={{ width: 30, height: 30, borderRadius: 999, backgroundColor: c.accent, alignItems: "center", justifyContent: "center" }}>
+          <Pressable onPress={onExplore} style={{ alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#FF385C", borderRadius: 999, paddingLeft: 20, paddingRight: 14, height: 50 }}>
+            <Txt size={14} font="sansBold" style={{ color: "#ffffff" }} uppercase tracking={1}>Open gallery</Txt>
+            <View style={{ width: 30, height: 30, borderRadius: 999, backgroundColor: "rgba(0,0,0,0.25)", alignItems: "center", justifyContent: "center" }}>
               <ArrowRight size={16} color="#fff" />
             </View>
           </Pressable>

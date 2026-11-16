@@ -609,9 +609,9 @@ function FeaturedCarousel({ events, onOpen }: { events: EventItem[]; onOpen: (id
                   </View>
                   <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 16 }}>
                     <Txt size={20} font="sansExt" style={{ color: "#fff" }}>{formatINR(ev.price)}</Txt>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#fff", borderRadius: 999, paddingHorizontal: 18, height: 44 }}>
-                      <Ticket size={16} color="#111" />
-                      <Txt size={13.5} font="sansBold" style={{ color: "#111" }} uppercase tracking={1}>Book</Txt>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FF385C", borderRadius: 999, paddingHorizontal: 18, height: 44 }}>
+                      <Ticket size={16} color="#ffffff" />
+                      <Txt size={13.5} font="sansBold" style={{ color: "#ffffff" }} uppercase tracking={1}>Book</Txt>
                     </View>
                   </View>
                 </View>
