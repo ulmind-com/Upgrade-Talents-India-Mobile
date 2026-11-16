@@ -1,14 +1,19 @@
-import React from "react";
-import { View, Linking, Pressable } from "react-native";
-import { Mail, Phone, MapPin, Instagram, Facebook, Youtube, Twitter, Linkedin, ExternalLink, ChevronRight } from "lucide-react-native";
+import React, { useState } from "react";
+import { View, Linking, Pressable, TextInput } from "react-native";
+import { Mail, Phone, MapPin, Instagram, Facebook, Youtube, Twitter, Linkedin, ExternalLink, ChevronRight, Send } from "lucide-react-native";
+import * as Haptics from "expo-haptics";
 import { SubScreen } from "@/components/SubScreen";
 import { useTheme } from "@/theme/ThemeProvider";
 import { publicApi, safe } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
-import { Txt, Card, Divider, Skeleton } from "@/components/ui";
+import { Txt, Card, Divider, Skeleton, Button, Field, Input } from "@/components/ui";
+import { useAlert } from "@/components/Popup";
+import { useSession } from "@/context/Session";
 
 export default function Contact() {
   const { c } = useTheme();
+  const alert = useAlert();
+  const { user } = useSession();
   const { data, loading, refreshing, refresh } = useAsync(
     () => Promise.all([safe(publicApi.contactInfo(), {} as any), safe(publicApi.importantLinks(), [] as any[])]),
     []
@@ -16,6 +21,28 @@ export default function Contact() {
   const [contact, links] = data || [{}, []];
   const social = contact?.social_media || {};
   const open = (url?: string) => url && Linking.openURL(url).catch(() => {});
+
+  const [name, setName] = useState(user?.name || "");
+  const [email, setEmail] = useState(user?.email || "");
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+
+  const sendMessage = () => {
+    if (!name.trim()) { alert("warning", "Name required", "Please tell us your name."); return; }
+    if (!email.trim() || !email.includes("@")) { alert("warning", "Valid email required", "Please enter a valid email address."); return; }
+    if (message.trim().length < 10) { alert("warning", "Message too short", "Please provide a few more details (at least 10 characters)."); return; }
+
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    const targetEmail = contact?.contact_email || "support@upgradetalents.com";
+    const subj = encodeURIComponent(subject.trim() || `Enquiry from ${name.trim()}`);
+    const body = encodeURIComponent(`${message.trim()}\n\n—\nName: ${name.trim()}\nEmail: ${email.trim()}`);
+
+    Linking.openURL(`mailto:${targetEmail}?subject=${subj}&body=${body}`).catch(() => {
+      alert("error", "Email client error", "Could not open your default email app.");
+    });
+    alert("success", "Email draft ready", "Your email app is open with the prefilled message.");
+  };
 
   const socials = [
     { k: "instagram", Icon: Instagram, url: social.instagram },
@@ -52,6 +79,59 @@ export default function Contact() {
               </View>
             </View>
           ) : null}
+
+          {/* Send a message form */}
+          <Card style={{ padding: 18, gap: 14 }}>
+            <View>
+              <Txt size={11} font="monoMed" tone="accent" tracking={2} uppercase>
+                Direct Message
+              </Txt>
+              <Txt size={20} font="sansBold" style={{ color: "#ffffff", marginTop: 2 }}>
+                Send us a message
+              </Txt>
+            </View>
+
+            <Field label="Your name" required>
+              <Input value={name} onChangeText={setName} placeholder="Full name" />
+            </Field>
+
+            <Field label="Your email" required>
+              <Input value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" placeholder="you@example.com" />
+            </Field>
+
+            <Field label="Subject">
+              <Input value={subject} onChangeText={setSubject} placeholder="What is this regarding?" />
+            </Field>
+
+            <Field label="Message" required>
+              <TextInput
+                value={message}
+                onChangeText={setMessage}
+                multiline
+                numberOfLines={4}
+                placeholder="Tell us a little about your enquiry…"
+                placeholderTextColor={c.fgSubtle}
+                style={{
+                  backgroundColor: "#0d0f15",
+                  color: "#ffffff",
+                  fontSize: 14,
+                  borderRadius: 14,
+                  borderWidth: 1,
+                  borderColor: "rgba(255, 255, 255, 0.1)",
+                  padding: 12,
+                  minHeight: 90,
+                  textAlignVertical: "top",
+                }}
+              />
+            </Field>
+
+            <Button
+              label="Send message"
+              onPress={sendMessage}
+              icon={<Send size={16} color="#ffffff" />}
+              full
+            />
+          </Card>
 
           {links?.length ? (
             <View>
