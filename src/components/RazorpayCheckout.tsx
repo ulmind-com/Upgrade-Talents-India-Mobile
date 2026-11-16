@@ -1,13 +1,29 @@
 import React, { useMemo, useRef, useState } from "react";
-import { View, Modal, Pressable, ActivityIndicator } from "react-native";
+import { View, Modal, Pressable, ActivityIndicator, Linking } from "react-native";
 import { WebView } from "@/components/vendor";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { X, ShieldCheck } from "lucide-react-native";
 import { useTheme } from "@/theme/ThemeProvider";
 import { Txt } from "@/components/ui";
 
+/** Default fallback test key matching the Next.js website (BookingFlow / CartProvider). */
+export const DEFAULT_RAZORPAY_KEY =
+  process.env.EXPO_PUBLIC_RAZORPAY_KEY_ID || "rzp_test_TBRo7AUeaKIhKB";
+
+/**
+ * Validates whether an order id is a genuine Razorpay Orders API order id.
+ * Mock/dummy order ids like "order_rzp_..." will cause checkout.js to fail with:
+ * "The order_id provided is invalid". Standard checkout works seamlessly when
+ * order_id is omitted.
+ */
+export function isValidRazorpayOrderId(orderId?: string | null): boolean {
+  if (!orderId || typeof orderId !== "string") return false;
+  if (orderId.startsWith("order_rzp_")) return false;
+  return /^order_[A-Za-z0-9]{14,}$/.test(orderId);
+}
+
 export type RazorpayOptions = {
-  key: string;
+  key?: string;
   /** Amount in paise, as Razorpay expects. */
   amount: number;
   currency?: string;
@@ -21,8 +37,8 @@ export type RazorpayOptions = {
 
 export type RazorpaySuccess = {
   razorpay_payment_id: string;
-  razorpay_order_id: string;
-  razorpay_signature: string;
+  razorpay_order_id?: string;
+  razorpay_signature?: string;
 };
 
 /**
@@ -85,8 +101,8 @@ export function RazorpayCheckout({
     <Modal visible={visible} animationType="slide" onRequestClose={close} statusBarTranslucent>
       <View style={{ flex: 1, backgroundColor: c.bg, paddingTop: insets.top }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: c.border }}>
-          <View style={{ width: 34, height: 34, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: c.success + "1f" }}>
-            <ShieldCheck size={17} color={c.success} />
+          <View style={{ width: 34, height: 34, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: c.accent + "1f" }}>
+            <ShieldCheck size={17} color={c.accent} />
           </View>
           <View style={{ flex: 1 }}>
             <Txt size={14.5} font="sansBold">Secure payment</Txt>
@@ -101,14 +117,46 @@ export function RazorpayCheckout({
           {options ? (
             <WebView
               originWhitelist={["*"]}
-              source={{ html, baseUrl: "https://checkout.razorpay.com" }}
+              source={{ html, baseUrl: "https://upgradetalentsindia.in" }}
               onMessage={(e) => handle(e.nativeEvent.data)}
               javaScriptEnabled
               domStorageEnabled
-              // UPI and bank pages open themselves in new windows
               setSupportMultipleWindows={false}
               startInLoadingState={false}
-              onError={() => { if (!settled.current) { settled.current = true; onFailure("Could not reach the payment gateway. Check your connection and retry."); } }}
+              onShouldStartLoadWithRequest={(request) => {
+                const url = request.url;
+                if (
+                  !url ||
+                  url.startsWith("about:") ||
+                  url.startsWith("data:") ||
+                  url.startsWith("http://") ||
+                  url.startsWith("https://")
+                ) {
+                  return true;
+                }
+                // External deep-links (upi://, intent://, paytmmp://, phonepe://, tez://)
+                Linking.canOpenURL(url)
+                  .then((supported) => {
+                    if (supported) {
+                      Linking.openURL(url).catch(() => {});
+                    }
+                  })
+                  .catch(() => {});
+                return false;
+              }}
+              onError={(syntheticEvent) => {
+                const desc = syntheticEvent?.nativeEvent?.description || "";
+                if (
+                  desc.includes("net::ERR_UNKNOWN_URL_SCHEME") ||
+                  desc.includes("ERR_UNKNOWN_URL_SCHEME")
+                ) {
+                  return;
+                }
+                if (!settled.current) {
+                  settled.current = true;
+                  onFailure("Could not reach the payment gateway. Check your connection and retry.");
+                }
+              }}
               style={{ flex: 1, backgroundColor: "transparent" }}
             />
           ) : null}
@@ -127,17 +175,20 @@ export function RazorpayCheckout({
 
 /** The checkout page. Every outcome is posted back to the app as one message. */
 function buildHtml(o: RazorpayOptions) {
-  const opts = {
-    key: o.key,
+  const cleanOrderId = isValidRazorpayOrderId(o.order_id) ? o.order_id : undefined;
+  const opts: Record<string, any> = {
+    key: o.key || DEFAULT_RAZORPAY_KEY,
     amount: o.amount,
     currency: o.currency || "INR",
     name: o.name || "Upgrade Talents India",
     description: o.description || "Ticket purchase",
-    order_id: o.order_id,
     prefill: o.prefill || {},
     notes: o.notes || {},
-    theme: { color: o.theme?.color || "#ff5e1f" },
+    theme: { color: o.theme?.color || "#FF385C" },
   };
+  if (cleanOrderId) {
+    opts.order_id = cleanOrderId;
+  }
 
   return `<!doctype html>
 <html>
@@ -165,8 +216,8 @@ function buildHtml(o: RazorpayOptions) {
       options.handler = function (response) {
         post("success", {
           razorpay_payment_id: response.razorpay_payment_id,
-          razorpay_order_id: response.razorpay_order_id,
-          razorpay_signature: response.razorpay_signature
+          razorpay_order_id: response.razorpay_order_id || "",
+          razorpay_signature: response.razorpay_signature || ""
         });
       };
       options.modal = {

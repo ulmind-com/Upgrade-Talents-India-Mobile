@@ -687,7 +687,15 @@ export const paymentsApi = {
   }) => apiFetch<any>("/api/payments/verify-razorpay", { method: "POST", body, auth: "user" }),
 
   /** Cash-on-Spot / test settlement — the backend marks the booking paid without a gateway. */
-  verifyMock: (booking_id: string) => apiFetch<any>(`/api/payments/verify-mock/${booking_id}`, { method: "POST", auth: "user" }),
+  verifyMock: (booking_id: string, body?: { transaction_id?: string; status?: string }) =>
+    apiFetch<any>(`/api/payments/verify-mock/${booking_id}`, {
+      method: "POST",
+      body: {
+        status: body?.status || "success",
+        transaction_id: body?.transaction_id || `mock_${Date.now()}`,
+      },
+      auth: "user",
+    }),
 };
 
 export const registrationsApi = {
