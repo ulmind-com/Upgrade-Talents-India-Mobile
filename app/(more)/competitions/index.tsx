@@ -59,19 +59,19 @@ export default function Competitions() {
       refreshing={refreshing}
       onRefresh={() => { refresh(); lv.refresh(); }}
     >
-      {/* Hero — pink/magenta sectional colour */}
+      {/* Hero — District Gen-Z Violet to Coral */}
       <FadeInUp>
         <View style={{ borderRadius: 24, overflow: "hidden", marginBottom: 20 }}>
-          <LinearGradient colors={["#f0407e", "#b0205a", "#7a1340"] as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 20 }}>
+          <LinearGradient colors={["#7C3AED", "#FF385C", "#08090C"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 20 }}>
             <DottedGrid color="rgba(255,255,255,0.24)" opacity={0.5} gap={18} />
             <Txt size={72} font="display" style={{ position: "absolute", top: -6, right: -4, color: "rgba(255,255,255,0.15)", letterSpacing: -3 }}>WIN</Txt>
-            <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.26)", alignItems: "center", justifyContent: "center" }}>
+            <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.22)", alignItems: "center", justifyContent: "center" }}>
               <Trophy size={22} color="#fff" />
             </View>
             <Txt size={25} font="display" tracking={-0.5} lh={28} style={{ color: "#fff", marginTop: 12 }}>Enter. Perform.{"\n"}Take the crown.</Txt>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
               <Stat label="Open" value={shelf.open.length} />
-              {liveCards.length ? <Stat label="Voting live" value={liveCards.length} /> : null}
+              {liveCards.length ? <Stat label="Voting live" value={liveCards.length} highlight /> : null}
               {shelf.over.length ? <Stat label="Finished" value={shelf.over.length} /> : null}
             </View>
           </LinearGradient>
@@ -235,11 +235,11 @@ function CompCard({ comp, i, over, onPress }: { comp: CompRow; i: number; over?:
   );
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function Stat({ label, value, highlight }: { label: string; value: number; highlight?: boolean }) {
   return (
-    <View style={{ backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 14, paddingHorizontal: 14, paddingVertical: 8 }}>
-      <Txt size={18} font="display" style={{ color: "#fff" }}>{value}</Txt>
-      <Txt size={9.5} font="sansBold" style={{ color: "rgba(255,255,255,0.88)", letterSpacing: 1 }} uppercase>{label}</Txt>
+    <View style={{ backgroundColor: highlight ? "rgba(201, 242, 74, 0.2)" : "rgba(255,255,255,0.18)", borderRadius: 14, paddingHorizontal: 14, paddingVertical: 8, borderWidth: highlight ? 1 : 0, borderColor: "#C9F24A" }}>
+      <Txt size={18} font="display" style={{ color: highlight ? "#C9F24A" : "#fff" }}>{value}</Txt>
+      <Txt size={9.5} font="sansBold" style={{ color: highlight ? "#C9F24A" : "rgba(255,255,255,0.88)", letterSpacing: 1 }} uppercase>{label}</Txt>
     </View>
   );
 }

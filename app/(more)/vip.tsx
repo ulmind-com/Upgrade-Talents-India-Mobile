@@ -111,14 +111,14 @@ export default function Vip() {
   return (
     <SubScreen eyebrow="Backstage access" title="VIP Passes" refreshing={refreshing} onRefresh={refresh}>
 
-      {/* Hero band */}
+      {/* Hero band — District Gen-Z style */}
       <FadeInUp>
         <View style={{ borderRadius: 24, overflow: "hidden", marginBottom: 22 }}>
-          <LinearGradient colors={c.gradBrand as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 20 }}>
+          <LinearGradient colors={["#7C3AED", "#FF385C", "#08090C"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 20 }}>
             <DottedGrid color="rgba(255,255,255,0.22)" opacity={0.5} gap={18} />
             <Txt size={74} font="display" style={{ position: "absolute", top: -6, right: -4, color: "rgba(255,255,255,0.14)", letterSpacing: -3 }}>VIP</Txt>
             <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.24)", alignItems: "center", justifyContent: "center" }}>
-              <Crown size={23} color="#fff" />
+              <Crown size={23} color="#C9F24A" />
             </View>
             <Txt size={25} font="display" tracking={-0.5} lh={28} style={{ color: "#fff", marginTop: 14 }}>Skip the queue.{"\n"}Own the night.</Txt>
             <Txt size={13} lh={19} style={{ color: "rgba(255,255,255,0.9)", marginTop: 8, maxWidth: 270 }}>Front-row views, lounge access and backstage perks.</Txt>
@@ -138,10 +138,10 @@ export default function Vip() {
             <Pressable
               key={t.k}
               onPress={() => setTab(t.k)}
-              style={{ flexDirection: "row", alignItems: "center", gap: 6, height: 38, paddingHorizontal: 13, borderRadius: 999, borderWidth: 1, borderColor: on ? c.accent : c.border, backgroundColor: on ? c.accent + "1a" : c.surface }}
+              style={{ flexDirection: "row", alignItems: "center", gap: 6, height: 38, paddingHorizontal: 13, borderRadius: 999, borderWidth: 1, borderColor: on ? "#FF385C" : "rgba(255,255,255,0.12)", backgroundColor: on ? "#FF385C" : "#14161E" }}
             >
-              <t.Icon size={14} color={on ? c.accent : c.fgMuted} />
-              <Txt size={12.5} font="sansBold" style={{ color: on ? c.accent : c.fgMuted }}>{t.label}</Txt>
+              <t.Icon size={14} color={on ? "#fff" : c.fgMuted} />
+              <Txt size={12.5} font="sansBold" style={{ color: on ? "#fff" : c.fgMuted }}>{t.label}</Txt>
             </Pressable>
           );
         })}

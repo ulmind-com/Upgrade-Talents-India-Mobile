@@ -97,11 +97,11 @@ export const DARK: Palette = {
   ring: "#ff385c",
   scrim: "rgba(4,5,8,0.85)",
 
-  gradBrand: ["#ff5e7a", "#ff385c", "#e0264b", "#c41a3d"],
+  gradBrand: ["#8b5cf6", "#ff385c", "#e0264b", "#c41a3d"],
 
-  spot1: "rgba(139,92,246,0.22)",
-  spot2: "rgba(255,56,92,0.14)",
-  spot3: "rgba(201,242,74,0.10)",
+  spot1: "rgba(139,92,246,0.30)",
+  spot2: "rgba(255,56,92,0.18)",
+  spot3: "rgba(201,242,74,0.14)",
 
   stageGrad: ["#2d184d", "#22113d", "#180c2e", "#100820", "#08090c"],
   stageBloom: "rgba(139,92,246,0.38)",

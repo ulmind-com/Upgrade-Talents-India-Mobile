@@ -54,14 +54,14 @@ export default function Events() {
       <PageHeader eyebrow="Book your stage" title="Events" subtitle="Tickets to India's most electric dance events." />
 
       {/* Energetic ticker strip */}
-      <View style={{ marginHorizontal: -20, marginBottom: 18, backgroundColor: c.accent, overflow: "hidden", transform: [{ rotate: "-1.5deg" }, { scale: 1.04 }] }}>
+      <View style={{ marginHorizontal: -20, marginBottom: 18, backgroundColor: "#FF385C", overflow: "hidden", transform: [{ rotate: "-1.2deg" }, { scale: 1.03 }] }}>
         <DiagonalStripes color="rgba(0,0,0,0.12)" opacity={1} />
-        <TextTicker text="LIVE EVENTS   •   BOOK YOUR STAGE   •   LIMITED SEATS   •" color={c.onAccent} size={18} font="street" style={{ paddingVertical: 11 }} />
+        <TextTicker text="LIVE EVENTS   •   BOOK YOUR STAGE   •   LIMITED SEATS   •   DISTRICT ACCESS   •" color="#fff" size={17} font="street" style={{ paddingVertical: 10 }} />
       </View>
 
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: c.bgElevated, borderRadius: 16, borderWidth: 1, borderColor: c.borderStrong, paddingHorizontal: 14, height: 50, marginBottom: 14 }}>
-        <Search size={18} color={c.fgSubtle} />
-        <TextInput value={q} onChangeText={setQ} placeholder="Search events or venues" placeholderTextColor={c.fgSubtle} style={{ flex: 1, color: c.fg, fontSize: 15 }} />
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#14161E", borderRadius: 14, borderWidth: 1, borderColor: "rgba(255, 255, 255, 0.12)", paddingHorizontal: 14, height: 46, marginBottom: 14 }}>
+        <Search size={18} color="#6b728a" />
+        <TextInput value={q} onChangeText={setQ} placeholder="Search events or venues..." placeholderTextColor="#6b728a" style={{ flex: 1, color: "#fff", fontSize: 14 }} />
       </View>
 
       <View style={{ flexDirection: "row", gap: 8, marginBottom: 20 }}>

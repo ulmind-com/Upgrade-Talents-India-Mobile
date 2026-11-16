@@ -239,15 +239,15 @@ export default function EventDetail() {
         title="Share this event"
         subtitle={ev.title}
         message={`Check out ${ev.title} on Upgrade Talents — ${formatEventDate(ev.date)}${ev.venue ? ` at ${ev.venue}` : ""}.`}
-        url={`https://upgradetalents.in/events/${ev._id}`}
+        url={`https://upgradetalentsindia.in/events/${ev._id}`}
       />
 
-      {/* Sticky booking bar */}
-      <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, paddingHorizontal: 20, paddingTop: 14, paddingBottom: insets.bottom + 14, backgroundColor: c.bgElevated, borderTopWidth: 1, borderTopColor: c.border, flexDirection: "row", alignItems: "center", gap: 14 }}>
+      {/* Sticky booking bar — District style */}
+      <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, paddingHorizontal: 20, paddingTop: 14, paddingBottom: insets.bottom + 14, backgroundColor: "rgba(20, 22, 30, 0.96)", borderTopWidth: 1, borderTopColor: "rgba(255, 255, 255, 0.1)", flexDirection: "row", alignItems: "center", gap: 14 }}>
         <View>
           <Txt size={11} font="monoMed" tone="subtle" tracking={1.5} uppercase>{ev.price ? "From" : "Entry"}</Txt>
-          <Txt size={22} font="display" tone="accent">{formatINR(ev.price)}</Txt>
-          {lowSeats ? <Txt size={11} font="sansBold" tone="warning" style={{ marginTop: 1 }}>Only {seatsLeft} seats left</Txt> : null}
+          <Txt size={22} font="display" style={{ color: "#FF385C" }}>{formatINR(ev.price)}</Txt>
+          {lowSeats ? <Txt size={11} font="sansBold" style={{ color: "#C9F24A", marginTop: 1 }}>Only {seatsLeft} seats left</Txt> : null}
         </View>
         <View style={{ flex: 1 }}>
           <Button label={over ? (ev.event_status === "cancelled" ? "Event cancelled" : "This event has ended") : deadlineOver ? "Registration closed" : !bookable ? "Booking closed" : ev.ticket_enabled === false ? "Register now" : "Book tickets"} disabled={!bookable} full size="lg" onPress={() => router.push(`/(user)/events/${ev._id}/book`)} icon={<Ticket size={17} color={c.onAccent} />} />

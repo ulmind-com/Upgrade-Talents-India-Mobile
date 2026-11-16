@@ -40,22 +40,22 @@ export default function Shop() {
         <Pressable onPress={() => router.push("/(more)/cart")} style={{ width: 44, height: 44, borderRadius: 999, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: c.border, backgroundColor: c.surface }}>
           <ShoppingCart size={19} color={c.fg} />
           {count > 0 ? (
-            <View style={{ position: "absolute", top: -4, right: -4, minWidth: 20, height: 20, paddingHorizontal: 5, borderRadius: 999, backgroundColor: "#f0407e", alignItems: "center", justifyContent: "center" }}>
+            <View style={{ position: "absolute", top: -4, right: -4, minWidth: 20, height: 20, paddingHorizontal: 5, borderRadius: 999, backgroundColor: "#FF385C", alignItems: "center", justifyContent: "center" }}>
               <Txt size={10.5} font="sansBold" style={{ color: "#fff" }}>{count}</Txt>
             </View>
           ) : null}
         </Pressable>
       }
     >
-      {/* Drop hero — violet/pink sectional colour */}
+      {/* Drop hero — District Gen-Z palette */}
       <FadeInUp>
         <View style={{ borderRadius: 24, overflow: "hidden", marginBottom: 20 }}>
-          <LinearGradient colors={["#b36bff", "#7c3aed", "#5b21b6"] as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 20 }}>
+          <LinearGradient colors={["#7C3AED", "#FF385C", "#08090C"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 20 }}>
             <DottedGrid color="rgba(255,255,255,0.25)" opacity={0.5} gap={18} />
             <Txt size={72} font="display" style={{ position: "absolute", top: -4, right: -6, color: "rgba(255,255,255,0.14)", letterSpacing: -3 }}>DROP</Txt>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
-              <Sparkles size={14} color="#fff" />
-              <Txt size={10.5} font="monoMed" tracking={2.5} uppercase style={{ color: "rgba(255,255,255,0.92)" }}>Season drop</Txt>
+              <Sparkles size={14} color="#C9F24A" />
+              <Txt size={10.5} font="monoMed" tracking={2.5} uppercase style={{ color: "#C9F24A" }}>Season drop</Txt>
             </View>
             <Txt size={25} font="display" tracking={-0.5} lh={28} style={{ color: "#fff", marginTop: 12 }}>Wear the{"\n"}movement.</Txt>
             <Txt size={13} lh={19} style={{ color: "rgba(255,255,255,0.9)", marginTop: 8, maxWidth: 240 }}>Official tees, hoodies & gear from the floor.</Txt>

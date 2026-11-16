@@ -78,10 +78,10 @@ export default function Tickets() {
     <Screen refreshing={refreshing} onRefresh={refresh}>
       <PageHeader eyebrow="Your passes" title="My Tickets" subtitle="Tap a pass for the QR, details & download." />
 
-      {/* Digital wallet — credit-card style */}
+      {/* Digital wallet — District style */}
       <FadeInUp>
-        <View style={{ borderRadius: 24, overflow: "hidden", marginBottom: 20, shadowColor: c.accent, shadowOpacity: 0.35, shadowRadius: 18, shadowOffset: { width: 0, height: 12 }, elevation: 10 }}>
-          <LinearGradient colors={c.gradBrand as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 20, minHeight: 172 }}>
+        <View style={{ borderRadius: 24, overflow: "hidden", marginBottom: 20, shadowColor: "#8B5CF6", shadowOpacity: 0.35, shadowRadius: 18, shadowOffset: { width: 0, height: 12 }, elevation: 10 }}>
+          <LinearGradient colors={["#7C3AED", "#FF385C", "#08090C"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 20, minHeight: 172 }}>
             <DottedGrid color="rgba(255,255,255,0.22)" opacity={0.5} gap={18} />
             {/* top */}
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>

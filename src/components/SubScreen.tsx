@@ -3,11 +3,13 @@ import { View, Pressable, ScrollView, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
+import * as Haptics from "expo-haptics";
 import { ArrowLeft } from "lucide-react-native";
 import { useTheme } from "@/theme/ThemeProvider";
 import { Txt, Glow } from "@/components/ui";
 
-/** Full-screen detail page with a back header, used across the (more) group. */
+/** Full-screen detail page with a Zomato District Gen-Z header, used across the (more) group. */
 export function SubScreen({
   title,
   eyebrow,
@@ -29,32 +31,92 @@ export function SubScreen({
   onBack?: () => void;
   overlay?: React.ReactNode;
 }) {
-  const { c } = useTheme();
+  const { c, name } = useTheme();
   const router = useRouter();
+
+  const handleBack = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    if (onBack) onBack();
+    else if (router.canGoBack()) router.back();
+    else router.replace("/(user)/profile");
+  };
 
   const header = (
     <View style={{ paddingHorizontal: 20, paddingTop: 4, paddingBottom: 16 }}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-        <Pressable onPress={() => (onBack ? onBack() : router.canGoBack() ? router.back() : router.replace("/(user)/profile"))} style={{ width: 42, height: 42, borderRadius: 999, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: c.border, backgroundColor: c.surface }}>
+        <Pressable
+          onPress={handleBack}
+          style={({ pressed }) => ({
+            width: 42,
+            height: 42,
+            borderRadius: 999,
+            alignItems: "center",
+            justifyContent: "center",
+            borderWidth: 1,
+            borderColor: name === "dark" ? "rgba(255, 255, 255, 0.12)" : c.border,
+            backgroundColor: name === "dark" ? "rgba(20, 22, 30, 0.9)" : c.surface,
+            transform: [{ scale: pressed ? 0.94 : 1 }],
+          })}
+        >
           <ArrowLeft size={20} color={c.fg} />
         </Pressable>
         {right}
       </View>
-      {eyebrow ? <Txt size={11} font="monoMed" tone="accent" tracking={3} uppercase style={{ marginTop: 18 }}>{eyebrow}</Txt> : null}
-      <Txt size={28} font="display" tracking={-1} style={{ marginTop: eyebrow ? 6 : 18 }}>{title}</Txt>
+      {eyebrow ? (
+        <Txt
+          size={11.5}
+          font="monoMed"
+          style={{ color: "#C9F24A", letterSpacing: 2, marginTop: 18 }}
+          uppercase
+        >
+          {eyebrow}
+        </Txt>
+      ) : null}
+      <Txt
+        size={28}
+        font="display"
+        tracking={-0.6}
+        style={{ color: name === "dark" ? "#FFFFFF" : c.fg, marginTop: eyebrow ? 6 : 16 }}
+      >
+        {title}
+      </Txt>
     </View>
   );
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
       <StatusBar style={c.barStyle === "light" ? "light" : "dark"} />
+
+      {/* Zomato District Signature Ambient Violet Glow at the top */}
+      <LinearGradient
+        colors={
+          name === "dark"
+            ? ["rgba(139, 92, 246, 0.32)", "rgba(139, 92, 246, 0.08)", "transparent"]
+            : ["rgba(139, 92, 246, 0.16)", "rgba(139, 92, 246, 0.04)", "transparent"]
+        }
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 340,
+          pointerEvents: "none",
+        }}
+      />
       <Glow color={c.spot1} size={320} top={-120} right={-100} />
+
       <SafeAreaView edges={["top"]} style={{ flex: 1 }}>
         {scroll ? (
           <ScrollView
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 48 }}
-            refreshControl={onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={c.accent} colors={[c.accent]} /> : undefined}
+            refreshControl={
+              onRefresh ? (
+                <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={c.accent} colors={[c.accent]} />
+              ) : undefined
+            }
           >
             {header}
             <View style={{ paddingHorizontal: 20 }}>{children}</View>

@@ -39,27 +39,27 @@ export default function Learn() {
 
   return (
     <Screen refreshing={active.refreshing} onRefresh={active.refresh} contentStyle={{ paddingTop: 10 }}>
-      {/* Striped gradient hero band (unique to Learn) */}
+      {/* Striped gradient hero band — District Gen-Z style */}
       <View style={{ borderRadius: 26, overflow: "hidden", marginBottom: 20, marginTop: 4 }}>
-        <LinearGradient colors={[c.theaterPink, c.theaterDeep] as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 22 }}>
+        <LinearGradient colors={["#7C3AED", "#FF385C", "#08090C"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 22 }}>
           <DiagonalStripes color="rgba(255,255,255,0.08)" />
-          <Glow color={c.stageBloom} size={170} top={10} right={-60} />
+          <Glow color="rgba(139, 92, 246, 0.4)" size={170} top={10} right={-60} />
           <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
-            <Sparkles size={15} color="#fff" />
-            <Txt size={11} font="monoMed" tracking={3} uppercase style={{ color: "rgba(255,255,255,0.9)" }}>Level up</Txt>
+            <Sparkles size={15} color="#C9F24A" />
+            <Txt size={11} font="monoMed" tracking={3} uppercase style={{ color: "#C9F24A" }}>Level up</Txt>
           </View>
-          <Txt size={30} font="display" lh={32} tracking={-0.5} style={{ color: "#fff", marginTop: 12 }}>Learn from the{"\n"}best on the floor</Txt>
+          <Txt size={28} font="display" lh={32} tracking={-0.5} style={{ color: "#fff", marginTop: 12 }}>Learn from the{"\n"}best on the floor</Txt>
           <Txt size={13.5} lh={20} style={{ color: "rgba(255,255,255,0.82)", marginTop: 10, maxWidth: 300 }}>Courses & workshops from world-class choreographers.</Txt>
         </LinearGradient>
       </View>
 
-      {/* Segmented */}
-      <View style={{ flexDirection: "row", backgroundColor: c.surface, borderRadius: 999, padding: 4, borderWidth: 1, borderColor: c.border, marginBottom: 20 }}>
+      {/* Segmented Control */}
+      <View style={{ flexDirection: "row", backgroundColor: "#14161E", borderRadius: 999, padding: 4, borderWidth: 1, borderColor: "rgba(255, 255, 255, 0.1)", marginBottom: 20 }}>
         {(["courses", "workshops"] as const).map((t) => {
           const on = tab === t;
           return (
-            <Pressable key={t} onPress={() => setTab(t)} style={{ flex: 1, height: 42, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: on ? c.accent : "transparent" }}>
-              <Txt size={13.5} font="sansBold" style={{ color: on ? c.onAccent : c.fgMuted, textTransform: "capitalize" }}>{t}</Txt>
+            <Pressable key={t} onPress={() => setTab(t)} style={{ flex: 1, height: 42, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: on ? "#FF385C" : "transparent" }}>
+              <Txt size={13.5} font="sansBold" style={{ color: on ? "#fff" : "#9ea3b8", textTransform: "capitalize" }}>{t}</Txt>
             </Pressable>
           );
         })}

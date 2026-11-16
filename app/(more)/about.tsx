@@ -30,16 +30,16 @@ export default function About() {
 
   return (
     <SubScreen eyebrow="Who we are" title="About us">
-      {/* Hero — cyan sectional colour */}
+      {/* Hero — District Gen-Z palette */}
       <FadeInUp>
         <View style={{ borderRadius: 24, overflow: "hidden", marginBottom: 20 }}>
           <View style={{ height: 150 }}>
             <AppImage seed={4} style={{ width: "100%", height: "100%" }} />
-            <LinearGradient colors={["rgba(17,120,200,0.55)", "rgba(10,40,90,0.9)"] as any} style={{ position: "absolute", width: "100%", height: "100%" }} />
+            <LinearGradient colors={["rgba(124, 58, 237, 0.75)", "rgba(8, 9, 12, 0.95)"]} style={{ position: "absolute", width: "100%", height: "100%" }} />
             <DottedGrid color="rgba(255,255,255,0.22)" opacity={0.5} gap={18} />
             <View style={{ position: "absolute", bottom: 16, left: 18, right: 18 }}>
               <Txt size={24} font="display" tracking={-0.5} lh={27} style={{ color: "#fff" }}>{s?.brand_name || "Upgrade Talents India"}</Txt>
-              <Txt size={13} style={{ color: "rgba(255,255,255,0.9)", marginTop: 4 }} numberOfLines={2}>{s?.tagline || "The team behind the stage."}</Txt>
+              <Txt size={13} style={{ color: "#C9F24A", marginTop: 4 }} numberOfLines={2}>{s?.tagline || "The team behind the stage."}</Txt>
             </View>
           </View>
         </View>

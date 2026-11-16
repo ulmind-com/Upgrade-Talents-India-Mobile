@@ -2,12 +2,13 @@ import React from "react";
 import { RefreshControl, ScrollView, StyleProp, View, ViewStyle } from "react-native";
 import { SafeAreaView, type Edge } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
+import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "@/theme/ThemeProvider";
 import { Glow } from "./ui";
 
 /**
- * Page shell: themed background, status bar, optional ambient glows, and either
- * a scroll container or a plain flex body.
+ * Page shell: themed background, status bar, Zomato District top ambient mesh glow,
+ * and either a scroll container or a plain flex body.
  */
 export function Screen({
   children,
@@ -32,20 +33,38 @@ export function Screen({
   style?: StyleProp<ViewStyle>;
   bg?: string;
 }) {
-  const { c } = useTheme();
+  const { c, name } = useTheme();
   const background = bg ?? c.bg;
-
-  const decor = glow ? (
-    <>
-      <Glow color={c.spot1} size={380} top={-120} left={-100} />
-      <Glow color={c.spot2} size={300} top={120} right={-120} />
-    </>
-  ) : null;
 
   return (
     <View style={{ flex: 1, backgroundColor: background }}>
       <StatusBar style={c.barStyle === "light" ? "light" : "dark"} />
-      {decor}
+
+      {/* Zomato District Signature Ambient Violet Glow at the top */}
+      {glow ? (
+        <>
+          <LinearGradient
+            colors={
+              name === "dark"
+                ? ["rgba(139, 92, 246, 0.32)", "rgba(139, 92, 246, 0.08)", "transparent"]
+                : ["rgba(139, 92, 246, 0.16)", "rgba(139, 92, 246, 0.04)", "transparent"]
+            }
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 340,
+              pointerEvents: "none",
+            }}
+          />
+          <Glow color={c.spot1} size={360} top={-120} left={-100} />
+          <Glow color={c.spot2} size={280} top={140} right={-120} />
+        </>
+      ) : null}
+
       <SafeAreaView edges={edges} style={[{ flex: 1 }, style]}>
         {scroll ? (
           <ScrollView
@@ -53,7 +72,9 @@ export function Screen({
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={[{ paddingHorizontal: padded ? 20 : 0, paddingBottom: 110 }, contentStyle]}
             refreshControl={
-              onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={c.accent} colors={[c.accent]} /> : undefined
+              onRefresh ? (
+                <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={c.accent} colors={[c.accent]} />
+              ) : undefined
             }
           >
             {children}

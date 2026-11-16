@@ -49,10 +49,10 @@ export default function Rewards() {
       ) : (
         <View style={{ gap: 16 }}>
           <Card padding={0} style={{ overflow: "hidden" }}>
-            <LinearGradient colors={c.gradBrand as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 22 }}>
+            <LinearGradient colors={["#7C3AED", "#FF385C", "#08090C"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 22 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Gift size={18} color="#fff" />
-                <Txt size={12} font="monoMed" tracking={2} uppercase style={{ color: "rgba(255,255,255,0.9)" }}>Points balance</Txt>
+                <Gift size={18} color="#C9F24A" />
+                <Txt size={12} font="monoMed" tracking={2} uppercase style={{ color: "#C9F24A" }}>Points balance</Txt>
               </View>
               <Txt size={52} font="display" style={{ color: "#fff", marginTop: 8 }}>{balance}</Txt>
               <Txt size={13} style={{ color: "rgba(255,255,255,0.9)", marginTop: 4 }}>Every friend who joins earns you points.</Txt>
