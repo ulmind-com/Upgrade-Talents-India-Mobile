@@ -228,12 +228,12 @@ export default function LearnDetail() {
         </Pressable>
       </View>
 
-      {/* Enrol bar */}
+      {/* District Floating Enrol bar */}
       {item ? (
-        <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, paddingHorizontal: 20, paddingTop: 14, paddingBottom: insets.bottom + 14, backgroundColor: c.bgElevated, borderTopWidth: 1, borderTopColor: c.border, flexDirection: "row", alignItems: "center", gap: 14 }}>
+        <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, paddingHorizontal: 20, paddingTop: 14, paddingBottom: insets.bottom + 14, backgroundColor: "rgba(20, 22, 30, 0.96)", borderTopWidth: 1, borderTopColor: "rgba(255, 255, 255, 0.1)", flexDirection: "row", alignItems: "center", gap: 14 }}>
           <View>
             <Txt size={11} font="monoMed" tone="subtle" tracking={1.5} uppercase>Fee</Txt>
-            <Txt size={22} font="display" tone="accent">{item.price > 0 ? formatINR(payable ?? item.price) : "Free"}</Txt>
+            <Txt size={22} font="display" style={{ color: "#FF385C" }}>{item.price > 0 ? formatINR(payable ?? item.price) : "Free"}</Txt>
             {payable !== null && payable < (item.price ?? 0) ? (
               <Txt size={11.5} tone="subtle" style={{ textDecorationLine: "line-through" }}>{formatINR(item.price)}</Txt>
             ) : null}

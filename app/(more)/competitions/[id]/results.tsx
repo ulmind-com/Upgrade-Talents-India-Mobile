@@ -18,10 +18,10 @@ import { formatDateTime } from "@/lib/format";
 
 /* The competitions chapter runs pink/magenta; results keep that identity but
    crown it in gold so the winners read as winners. */
-const PINK = "#f0407e";
-const DEEP = "#7a1340";
-const GOLD = "#ffd166";
-const PODIUM = ["#ffd166", "#dfe6ef", "#f0a56a"]; // gold / silver / bronze
+const PINK = "#FF385C";
+const DEEP = "#14161E";
+const GOLD = "#C9F24A";
+const PODIUM = ["#C9F24A", "#dfe6ef", "#FF385C"]; // gold / silver / bronze
 
 type Row = Record<string, any>;
 const rowName = (r: Row) => r.name || r.user_name || r.email || r.user_email || "Contestant";

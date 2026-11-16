@@ -5,19 +5,15 @@ import { Vote, Radio, Trophy, ArrowUpRight, Timer } from "lucide-react-native";
 import { useTheme } from "@/theme/ThemeProvider";
 import { Txt } from "@/components/ui";
 import { AppImage } from "@/components/AppImage";
-import { DiagonalStripes, TextTicker } from "@/components/patterns";
 import { Pulse } from "@/components/motion";
 import { countdownParts } from "@/lib/format";
 import { compId, type CompRow } from "@/lib/competition";
 
 const SCREEN_W = Dimensions.get("window").width;
 
-/* The poll runs acid-green into cyan — nothing else in the app uses this pair,
-   so "voting is open right now" is its own colour and never reads as a
-   generic promo card. */
-const ACID = "#c6ff3d";
+const ACID = "#C9F24A";
 const CYAN = "#38bdf8";
-const INK = ["#07140f", "#0a1f1a", "#06131f"];
+const INK = ["#14161E", "#1B1D28", "#08090C"];
 
 /** Five bars reacting to the count coming in. */
 function Meter({ color = ACID, bars = 5, h = 18 }: { color?: string; bars?: number; h?: number }) {
@@ -118,7 +114,6 @@ export function LiveVoteCard({ comp, width, compact, onPress }: { comp: CompRow;
         <LinearGradient colors={INK as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ position: "absolute", width: "100%", height: "100%" }} />
         <AppImage uri={comp.image_url || comp.banner_url} seed={compId(comp)} style={{ position: "absolute", width: "100%", height: "100%", opacity: 0.3 }} />
         <LinearGradient colors={["rgba(4,12,10,0.25)", "rgba(4,12,10,0.86)"] as any} style={{ position: "absolute", width: "100%", height: "100%" }} />
-        <DiagonalStripes color={ACID} opacity={0.08} gap={22} w={6} />
         <Beam w={width} h={H} />
 
         {/* a live wire along the top edge */}
@@ -213,9 +208,10 @@ export function LiveVotingBand({
         </Txt>
       </View>
 
-      {/* a running wire under the heading */}
-      <View style={{ height: 22, marginHorizontal: compact ? 20 : 0, marginBottom: 10, borderRadius: 999, overflow: "hidden", backgroundColor: "rgba(198,255,61,0.1)", justifyContent: "center" }}>
-        <TextTicker text="VOTE NOW" color={ACID} size={9.5} font="monoMed" gap={16} speed={30} />
+      {/* a clean district indicator */}
+      <View style={{ height: 26, marginHorizontal: compact ? 20 : 0, marginBottom: 10, borderRadius: 999, backgroundColor: "rgba(201,242,74,0.08)", borderWidth: 1, borderColor: "rgba(201,242,74,0.22)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 12 }}>
+        <View style={{ width: 6, height: 6, borderRadius: 999, backgroundColor: ACID }} />
+        <Txt size={10} font="sansBold" tracking={1.5} style={{ color: ACID }} uppercase>LIVE VOTING ROUND</Txt>
       </View>
 
       {one ? (

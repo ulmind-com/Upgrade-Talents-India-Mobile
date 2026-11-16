@@ -19,7 +19,7 @@ import { AppImage } from "@/components/AppImage";
 import { CopyCode } from "@/components/CopyCode";
 import { ShareSheet } from "@/components/ShareSheet";
 import { usePopup } from "@/components/Popup";
-import { DiagonalStripes, DottedGrid, Perforation } from "@/components/patterns";
+import { DottedGrid, Perforation } from "@/components/patterns";
 import { Intro, useIntro } from "@/components/motion";
 import { formatINR, formatEventDate, formatDateTime, titleCase } from "@/lib/format";
 import {
@@ -139,15 +139,14 @@ export default function BookingDetail() {
         {/* ══ Hero ══ */}
         <View style={{ height: HERO, overflow: "hidden" }}>
           <LinearGradient colors={[A, B] as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ position: "absolute", width: "100%", height: "100%" }} />
-          <AppImage uri={ev.cover} seed={ev.eventId || reference} style={{ position: "absolute", width: "100%", height: "100%", opacity: 0.4 }} />
-          <DiagonalStripes color="#ffffff" opacity={0.06} />
+          <AppImage uri={ev.cover} seed={ev.eventId || reference} style={{ position: "absolute", width: "100%", height: "100%", opacity: 0.35 }} />
           <LinearGradient
             colors={["rgba(0,0,0,0.42)", "rgba(0,0,0,0.12)", c.bg] as any}
             locations={[0, 0.45, 1]}
             style={{ position: "absolute", width: "100%", height: "100%" }}
           />
 
-          {/* The status, struck across the hero like a stamp. */}
+          {/* Clean District status pill badge */}
           <Stamp state={state} />
 
           <View style={{ flex: 1, paddingTop: insets.top + 6, paddingHorizontal: 20, justifyContent: "space-between" }}>
@@ -348,37 +347,29 @@ function Line({ label, value, tone }: { label: string; value: string; tone?: "su
   );
 }
 
-/** The status, struck across the hero at an angle like an ink stamp. */
+/** Clean District status badge */
 function Stamp({ state }: { state: ReturnType<typeof bookingState> }) {
-  const { c } = useTheme();
-  const a = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    Animated.timing(a, { toValue: 1, duration: 520, delay: 480, easing: Easing.bezier(0.16, 1, 0.3, 1), useNativeDriver: true }).start();
-  }, []);
   const map = {
-    confirmed: { text: "CONFIRMED", color: "#4ade80" },
-    free: { text: "FREE ENTRY", color: "#4ade80" },
-    pending: { text: "UNPAID", color: "#fbbf24" },
-    cancelled: { text: "CANCELLED", color: "#f87171" },
-    refunded: { text: "REFUNDED", color: "#7dd3fc" },
+    confirmed: { text: "CONFIRMED", color: "#4ade80", bg: "rgba(74, 222, 128, 0.18)" },
+    free: { text: "FREE ENTRY", color: "#4ade80", bg: "rgba(74, 222, 128, 0.18)" },
+    pending: { text: "UNPAID", color: "#fbbf24", bg: "rgba(251, 191, 36, 0.18)" },
+    cancelled: { text: "CANCELLED", color: "#f87171", bg: "rgba(248, 113, 113, 0.18)" },
+    refunded: { text: "REFUNDED", color: "#7dd3fc", bg: "rgba(125, 211, 252, 0.18)" },
   } as const;
   const s = map[state];
   return (
-    <Animated.View
+    <View
       pointerEvents="none"
       style={{
-        position: "absolute", top: 86, right: -14,
-        opacity: a.interpolate({ inputRange: [0, 1], outputRange: [0, 0.9] }),
-        transform: [
-          { rotate: "-9deg" },
-          { scale: a.interpolate({ inputRange: [0, 0.6, 1], outputRange: [1.7, 0.95, 1] }) },
-        ],
+        position: "absolute",
+        top: 86,
+        right: 18,
       }}
     >
-      <View style={{ borderWidth: 3, borderColor: s.color, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 5 }}>
-        <Txt size={17} font="display" tracking={2} style={{ color: s.color }}>{s.text}</Txt>
+      <View style={{ borderWidth: 1, borderColor: s.color + "66", backgroundColor: s.bg, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5 }}>
+        <Txt size={11} font="sansBold" tracking={1.5} style={{ color: s.color }}>{s.text}</Txt>
       </View>
-    </Animated.View>
+    </View>
   );
 }
 

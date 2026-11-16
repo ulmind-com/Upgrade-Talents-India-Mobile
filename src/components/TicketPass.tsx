@@ -25,36 +25,30 @@ const STUB = 104;
 const H = 168;
 
 /**
- * The ink stamp a dead pass gets. It lands once, with a punch, so it reads as
- * struck onto the ticket rather than drawn as part of it.
+ * A clean District status pill for expired tickets.
  */
 export function ExpiredStamp({
-  label = "EXPIRED", size = 20, color = "#ff7a7a", delay = 260, style,
+  label = "EXPIRED", size = 13, color = "#ff7a7a", delay = 260, style,
 }: {
   label?: string; size?: number; color?: string; delay?: number; style?: any;
 }) {
-  const a = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    Animated.timing(a, { toValue: 1, duration: 460, delay, easing: Easing.bezier(0.16, 1, 0.3, 1), useNativeDriver: true }).start();
-  }, []);
   return (
-    <Animated.View
+    <View
       pointerEvents="none"
       style={[
         {
-          opacity: a.interpolate({ inputRange: [0, 1], outputRange: [0, 0.92] }),
-          transform: [
-            { rotate: "-11deg" },
-            { scale: a.interpolate({ inputRange: [0, 0.6, 1], outputRange: [1.8, 0.94, 1] }) },
-          ],
+          backgroundColor: "rgba(0,0,0,0.7)",
+          borderWidth: 1,
+          borderColor: color + "66",
+          borderRadius: 999,
+          paddingHorizontal: 14,
+          paddingVertical: 6,
         },
         style,
       ]}
     >
-      <View style={{ borderWidth: 3, borderColor: color, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 4 }}>
-        <Txt size={size} font="display" tracking={2.5} style={{ color }}>{label}</Txt>
-      </View>
-    </Animated.View>
+      <Txt size={size} font="sansBold" tracking={1.5} style={{ color }}>{label}</Txt>
+    </View>
   );
 }
 

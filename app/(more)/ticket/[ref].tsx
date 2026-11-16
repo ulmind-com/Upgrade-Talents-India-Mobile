@@ -17,8 +17,8 @@ import { Txt, Skeleton, Glow } from "@/components/ui";
 import { AppImage } from "@/components/AppImage";
 import { usePopup } from "@/components/Popup";
 import { ShareSheet } from "@/components/ShareSheet";
-import { ticketWay, ExpiredStamp } from "@/components/TicketPass";
-import { DiagonalStripes, DottedGrid, TextTicker } from "@/components/patterns";
+import { ticketWay } from "@/components/TicketPass";
+import { DottedGrid } from "@/components/patterns";
 import { parseDate, isEventExpired, endedAgo } from "@/lib/format";
 
 const SCREEN = Dimensions.get("window").width;
@@ -244,11 +244,10 @@ export default function TicketDetail() {
             <View style={{ height: 158 }}>
               <AppImage uri={ev?.image_url} seed={p.event_id || p.ref} style={{ position: "absolute", width: "100%", height: "100%" }} />
               <LinearGradient colors={[A + "d9", B + "f2"] as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ position: "absolute", width: "100%", height: "100%" }} />
-              <DiagonalStripes color="#ffffff" opacity={0.07} gap={18} w={6} />
               <View style={{ flex: 1, padding: 20, justifyContent: "flex-end" }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 7, alignSelf: "flex-start", backgroundColor: "rgba(0,0,0,0.28)", borderRadius: 999, paddingHorizontal: 11, paddingVertical: 5, marginBottom: 9 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 7, alignSelf: "flex-start", backgroundColor: "rgba(0,0,0,0.45)", borderWidth: 1, borderColor: "rgba(255,255,255,0.18)", borderRadius: 999, paddingHorizontal: 11, paddingVertical: 5, marginBottom: 9 }}>
                   <TicketIcon size={12} color="#fff" />
-                  <Txt size={10} font="monoMed" tracking={2} uppercase style={{ color: "#fff" }}>{p.type || "Ticket"}</Txt>
+                  <Txt size={10} font="sansBold" tracking={1.5} uppercase style={{ color: "#fff" }}>{p.type || "Ticket"}</Txt>
                 </View>
                 {loading ? (
                   <Skeleton h={26} w="72%" />
@@ -257,16 +256,16 @@ export default function TicketDetail() {
                 )}
               </View>
               {expired ? (
-                <>
-                  <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0, backgroundColor: "rgba(6,8,16,0.5)" }} />
-                  <ExpiredStamp size={22} color={DEAD} style={{ position: "absolute", top: 24, right: 14 }} />
-                </>
+                <View style={{ position: "absolute", top: 18, right: 16, backgroundColor: "rgba(239, 68, 68, 0.25)", borderWidth: 1, borderColor: "rgba(239, 68, 68, 0.5)", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5 }}>
+                  <Txt size={10} font="sansBold" tracking={1} style={{ color: DEAD }}>EXPIRED</Txt>
+                </View>
               ) : null}
             </View>
 
-            {/* ── running strip ── */}
-            <View style={{ height: 26, backgroundColor: B, justifyContent: "center" }}>
-              <TextTicker text="ADMIT ONE" color="rgba(255,255,255,0.6)" size={10} font="monoMed" gap={18} speed={34} />
+            {/* ── District Accent Bar ── */}
+            <View style={{ height: 28, backgroundColor: "rgba(0,0,0,0.35)", borderTopWidth: 1, borderBottomWidth: 1, borderColor: "rgba(255,255,255,0.08)", flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20 }}>
+              <Txt size={10} font="monoMed" tracking={2} uppercase style={{ color: LITE }}>VERIFIED PASS</Txt>
+              <Txt size={10} font="sansBold" tracking={1.5} uppercase style={{ color: "rgba(255,255,255,0.6)" }}>ADMIT ONE</Txt>
             </View>
 
             {/* ── QR, inside a live scanner frame ── */}

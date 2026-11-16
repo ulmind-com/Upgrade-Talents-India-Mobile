@@ -9,11 +9,10 @@ import { Txt } from "@/components/ui";
 import { Avatar } from "@/components/Avatar";
 import { VerifiedTick } from "@/components/VerifiedBadge";
 import { Pulse } from "@/components/motion";
-import { DiagonalStripes } from "@/components/patterns";
 import { LiveStageLineupModal } from "@/components/LiveStageLineupModal";
 
-const STAGE = ["#2a0a1b", "#1a0a2e", "#0a0a1f"];
-const SPOT = "#f0407e";
+const STAGE = ["#14161E", "#1B1D28", "#08090C"];
+const SPOT = "#FF385C";
 
 const email = (s: any) => String(s ?? "").toLowerCase().trim();
 const pName = (p: any) => p?.participant_name || p?.user_name || p?.name || "Contestant";
@@ -61,10 +60,8 @@ export function LiveStage({ compId, live }: { compId: string; live?: boolean }) 
   if (!active && !(lineup.length && live)) return null;
 
   return (
-    <View style={{ borderRadius: 24, overflow: "hidden", marginBottom: 16 }}>
+    <View style={{ borderRadius: 24, overflow: "hidden", marginBottom: 16, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" }}>
       <LinearGradient colors={STAGE as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 16 }}>
-        <DiagonalStripes color={SPOT} opacity={0.07} gap={20} w={6} />
-
         {/* header */}
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 14 }}>
           <Pulse min={0.4} period={1100}><View style={{ width: 8, height: 8, borderRadius: 999, backgroundColor: SPOT }} /></Pulse>

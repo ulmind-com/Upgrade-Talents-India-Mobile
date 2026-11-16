@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Pressable, Dimensions } from "react-native";
-import { Tabs } from "expo-router";
+import { Tabs, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { Home, CalendarDays, GraduationCap, QrCode, User } from "lucide-react-native";
@@ -8,8 +8,8 @@ import { useTheme } from "@/theme/ThemeProvider";
 import { Txt } from "@/components/ui";
 
 type BottomTabBarProps = {
-  state: { index: number; routes: { key: string; name: string; state?: any }[] };
-  navigation: any;
+  state?: { index: number; routes: { key: string; name: string; state?: any }[] };
+  navigation?: any;
 };
 
 const ICONS: Record<string, any> = {
@@ -32,20 +32,22 @@ const TAB_ORDER = ["index", "events", "learn", "tickets", "profile"];
 
 function TabBar({ state, navigation }: BottomTabBarProps) {
   const { c } = useTheme();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width } = Dimensions.get("window");
 
-  const activeTab: any = state.routes[state.index];
+  const routes = (state?.routes || []).filter((r) => TAB_ORDER.includes(r.name));
+  const currentKey = state?.routes?.[state?.index ?? 0]?.key;
+  const idx = Math.max(0, routes.findIndex((r) => r.key === currentKey));
+
+  const activeTab: any = state?.routes?.[state?.index ?? 0];
   const nested = activeTab?.state;
   const nestedRoute = nested?.routes?.[nested.index ?? 0]?.name;
   const hidden = !!nestedRoute && nestedRoute !== "index";
 
-  const routes = state.routes.filter((r) => TAB_ORDER.includes(r.name));
-  const idx = Math.max(0, routes.findIndex((r) => r.key === state.routes[state.index]?.key));
-
   if (hidden) return null;
 
-  const barWidth = Math.min(width - 28, 420);
+  const barWidth = Math.min(width - 24, 430);
 
   return (
     <View
@@ -56,27 +58,27 @@ function TabBar({ state, navigation }: BottomTabBarProps) {
         right: 0,
         bottom: 0,
         alignItems: "center",
-        paddingBottom: Math.max(insets.bottom, 12),
+        paddingBottom: Math.max(insets.bottom, 10),
       }}
     >
-      {/* Floating Pill Capsule Dock */}
+      {/* Zomato District Signature Floating Capsule Dock */}
       <View
         style={{
           width: barWidth,
           height: 62,
           borderRadius: 999,
-          backgroundColor: "rgba(20, 22, 30, 0.95)",
+          backgroundColor: "rgba(20, 22, 30, 0.96)",
           borderWidth: 1,
           borderColor: "rgba(255, 255, 255, 0.12)",
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
-          paddingHorizontal: 8,
+          paddingHorizontal: 6,
           shadowColor: "#000",
-          shadowOpacity: 0.5,
-          shadowRadius: 20,
+          shadowOpacity: 0.6,
+          shadowRadius: 24,
           shadowOffset: { width: 0, height: 10 },
-          elevation: 16,
+          elevation: 18,
         }}
       >
         {routes.map((route, i) => {
@@ -86,17 +88,35 @@ function TabBar({ state, navigation }: BottomTabBarProps) {
 
           const onPress = () => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-            const ev = navigation.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
-            if (!focused && !ev.defaultPrevented) navigation.navigate(route.name as never);
+
+            // Safely attempt navigation via React Navigation if available
+            if (navigation && typeof navigation.emit === "function") {
+              try {
+                const ev = navigation.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
+                if (!focused && !ev?.defaultPrevented && typeof navigation.navigate === "function") {
+                  navigation.navigate(route.name);
+                  return;
+                }
+              } catch {}
+            }
+
+            // Always fallback cleanly to Expo Router
+            if (!focused) {
+              if (route.name === "index") {
+                router.replace("/(user)");
+              } else {
+                router.replace(`/(user)/${route.name}` as any);
+              }
+            }
           };
 
           return (
             <Pressable
-              key={route.key}
+              key={route.key || route.name}
               onPress={onPress}
-              hitSlop={6}
+              hitSlop={8}
               style={{
-                flex: focused ? 1.25 : 1,
+                flex: focused ? 1.3 : 1,
                 alignItems: "center",
                 justifyContent: "center",
                 height: 48,
@@ -108,22 +128,22 @@ function TabBar({ state, navigation }: BottomTabBarProps) {
                     flexDirection: "row",
                     alignItems: "center",
                     gap: 6,
-                    paddingHorizontal: 13,
+                    paddingHorizontal: 12,
                     paddingVertical: 7,
                     borderRadius: 999,
-                    backgroundColor: "rgba(255, 255, 255, 0.12)",
+                    backgroundColor: "rgba(255, 255, 255, 0.14)",
                     borderWidth: 1,
-                    borderColor: "rgba(255, 255, 255, 0.14)",
+                    borderColor: "rgba(255, 255, 255, 0.16)",
                   }}
                 >
-                  <Icon size={18} color="#ffffff" strokeWidth={2.4} />
+                  <Icon size={17} color="#ffffff" strokeWidth={2.4} />
                   <Txt size={11.5} font="sansBold" style={{ color: "#ffffff" }}>
                     {label}
                   </Txt>
                 </View>
               ) : (
                 <View style={{ alignItems: "center", justifyContent: "center", gap: 3 }}>
-                  <Icon size={19} color="#8e93a8" strokeWidth={1.9} />
+                  <Icon size={19} color="#8e93a8" strokeWidth={1.8} />
                   <Txt size={10} font="sansMed" style={{ color: "#8e93a8" }}>
                     {label}
                   </Txt>
@@ -139,7 +159,13 @@ function TabBar({ state, navigation }: BottomTabBarProps) {
 
 export default function UserLayout() {
   return (
-    <Tabs tabBar={(props: any) => <TabBar {...props} />} screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: "transparent" } }}>
+    <Tabs
+      tabBar={(props: any) => <TabBar {...props} />}
+      screenOptions={{
+        headerShown: false,
+        sceneStyle: { backgroundColor: "transparent" },
+      }}
+    >
       <Tabs.Screen name="index" />
       <Tabs.Screen name="events" />
       <Tabs.Screen name="learn" />

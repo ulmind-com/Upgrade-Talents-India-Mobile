@@ -94,7 +94,7 @@ export default function Product() {
           <View>
             {p.category ? <Txt size={11} font="monoMed" tone="subtle" tracking={2} uppercase>{titleCase(p.category)}</Txt> : null}
             <Txt size={24} font="display" tracking={-0.5} style={{ marginTop: 4 }}>{p.name}</Txt>
-            <Txt size={22} font="sansExt" tone="accent" style={{ marginTop: 6 }}>{formatINR(price)}</Txt>
+            <Txt size={22} font="display" style={{ color: "#FF385C", marginTop: 6 }}>{formatINR(price)}</Txt>
           </View>
 
           {colors.length ? (
@@ -183,8 +183,8 @@ export default function Product() {
         </Pressable>
       </View>
 
-      {/* Add to cart bar */}
-      <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, paddingHorizontal: 20, paddingTop: 14, paddingBottom: insets.bottom + 14, backgroundColor: c.bgElevated, borderTopWidth: 1, borderTopColor: c.border }}>
+      {/* District Floating Add to cart bar */}
+      <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, paddingHorizontal: 20, paddingTop: 14, paddingBottom: insets.bottom + 14, backgroundColor: "rgba(20, 22, 30, 0.96)", borderTopWidth: 1, borderTopColor: "rgba(255, 255, 255, 0.1)" }}>
         {(() => {
           const stock = variant?.stock ?? p?.stock;
           const out = typeof stock === "number" && stock <= 0;

@@ -262,12 +262,17 @@ export default function Book() {
   /* ── Booking screen ── */
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
-      <StatusBar style={c.barStyle === "light" ? "light" : "dark"} />
-      <Glow color={c.spot1} size={320} top={-130} right={-90} />
+      <StatusBar style="light" />
+      <LinearGradient
+        colors={["rgba(124, 58, 237, 0.28)", "rgba(255, 56, 92, 0.08)", "transparent"]}
+        locations={[0, 0.45, 1]}
+        style={{ position: "absolute", top: 0, left: 0, right: 0, height: 320 }}
+        pointerEvents="none"
+      />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: insets.top + 60, paddingHorizontal: 20, paddingBottom: 150 }} keyboardShouldPersistTaps="handled">
-        <Txt size={11} font="monoMed" tone="accent" tracking={3} uppercase>Secure your spot</Txt>
-        <Txt size={28} font="display" tracking={-1} lh={31} style={{ marginTop: 6 }}>{eventTitle}</Txt>
+        <Txt size={11} font="sansBold" tracking={2.5} uppercase style={{ color: "#C9F24A" }}>Secure your spot</Txt>
+        <Txt size={28} font="display" tracking={-1} lh={31} style={{ marginTop: 6, color: "#fff" }}>{eventTitle}</Txt>
 
 
         {/* Tiers */}
@@ -296,25 +301,25 @@ export default function Book() {
               const low = !soldOut && (t.available ?? 0) <= Math.max(3, t.total_quantity * 0.2);
               return (
                 <Pressable key={t._id} disabled={soldOut} onPress={() => { setSelected(t._id); setQty(1); }} style={{ opacity: soldOut ? 0.5 : 1 }}>
-                  <View style={{ borderRadius: 20, borderWidth: active ? 2 : 1, borderColor: active ? c.accent : c.border, backgroundColor: active ? c.accent + "12" : c.surface, padding: 16, overflow: "hidden" }}>
+                  <View style={{ borderRadius: 20, borderWidth: active ? 2 : 1, borderColor: active ? "#FF385C" : "rgba(255,255,255,0.08)", backgroundColor: active ? "rgba(255, 56, 92, 0.12)" : "#14161E", padding: 16, overflow: "hidden" }}>
                     <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
                       <View style={{ flex: 1, paddingRight: 12 }}>
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                           <Txt size={19} font="sansExt">{t.type}</Txt>
-                          {low ? <View style={{ backgroundColor: c.warning + "22", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 }}><Txt size={9.5} font="sansBold" tone="warning" tracking={0.5}>SELLING FAST</Txt></View> : null}
+                          {low ? <View style={{ backgroundColor: "rgba(201, 242, 74, 0.15)", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, borderWidth: 1, borderColor: "rgba(201, 242, 74, 0.3)" }}><Txt size={9.5} font="sansBold" style={{ color: "#C9F24A" }} tracking={0.5}>SELLING FAST</Txt></View> : null}
                         </View>
                         {/* availability bar */}
                         <View style={{ height: 6, borderRadius: 999, backgroundColor: c.surface2, marginTop: 10, overflow: "hidden" }}>
-                          <View style={{ width: `${ratio * 100}%`, height: "100%", borderRadius: 999, backgroundColor: soldOut ? c.danger : low ? c.warning : c.accent }} />
+                          <View style={{ width: `${ratio * 100}%`, height: "100%", borderRadius: 999, backgroundColor: soldOut ? c.danger : low ? "#C9F24A" : "#FF385C" }} />
                         </View>
                         <Txt size={11.5} font="sansSemi" tone={soldOut ? "danger" : "muted"} style={{ marginTop: 6 }}>
                           {soldOut ? "Sold out" : `${t.available} of ${t.total_quantity} left`}
                         </Txt>
                       </View>
                       <View style={{ alignItems: "flex-end", gap: 10 }}>
-                        <Txt size={22} font="display" tone="accent">{t.price > 0 ? formatINR(t.price) : "Free"}</Txt>
-                        <View style={{ width: 26, height: 26, borderRadius: 999, borderWidth: 2, borderColor: active ? c.accent : c.borderStrong, backgroundColor: active ? c.accent : "transparent", alignItems: "center", justifyContent: "center" }}>
-                          {active ? <Check size={15} color={c.onAccent} /> : null}
+                        <Txt size={22} font="display" style={{ color: "#FF385C" }}>{t.price > 0 ? formatINR(t.price) : "Free"}</Txt>
+                        <View style={{ width: 26, height: 26, borderRadius: 999, borderWidth: 2, borderColor: active ? "#FF385C" : c.borderStrong, backgroundColor: active ? "#FF385C" : "transparent", alignItems: "center", justifyContent: "center" }}>
+                          {active ? <Check size={15} color="#fff" /> : null}
                         </View>
                       </View>
                     </View>
@@ -366,12 +371,12 @@ export default function Book() {
         }}
       />
 
-      {/* Pay bar */}
+      {/* District Floating Pay bar */}
       {tier ? (
-        <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, paddingHorizontal: 20, paddingTop: 14, paddingBottom: insets.bottom + 14, backgroundColor: c.bgElevated, borderTopWidth: 1, borderTopColor: c.border, flexDirection: "row", alignItems: "center", gap: 14 }}>
+        <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, paddingHorizontal: 20, paddingTop: 14, paddingBottom: insets.bottom + 14, backgroundColor: "rgba(20, 22, 30, 0.96)", borderTopWidth: 1, borderTopColor: "rgba(255, 255, 255, 0.1)", flexDirection: "row", alignItems: "center", gap: 14 }}>
           <View>
             <Txt size={11} font="monoMed" tone="subtle" tracking={1.5} uppercase>Total</Txt>
-            <Txt size={22} font="display" tone="accent">{total > 0 ? formatINR(total) : "Free"}</Txt>
+            <Txt size={22} font="display" style={{ color: "#FF385C" }}>{total > 0 ? formatINR(total) : "Free"}</Txt>
           </View>
           <View style={{ flex: 1 }}>
             <Button label={closed ? closedLabel : submitting ? "Processing" : total > 0 ? `Pay ${formatINR(total)}` : "Confirm free ticket"} disabled={closed} full size="lg" loading={submitting} onPress={purchase} icon={<TicketIcon size={17} color={c.onAccent} />} />

@@ -7,7 +7,6 @@ import { Txt, Glow, SectionLabel } from "@/components/ui";
 import { AppImage } from "@/components/AppImage";
 import { initials, isUsableImageUrl } from "@/lib/format";
 import type { TestimonialItem, BannerItem, ContestPromotion } from "@/lib/api";
-import { DiagonalStripes } from "@/components/patterns";
 import { genz } from "@/theme/tokens";
 import { airState, countdownText, startsInText } from "@/lib/live";
 
@@ -208,7 +207,6 @@ export function ContestBand({ items, onEnter, onLeaderboard }: { items: ContestP
               <View style={{ width: CW, height: 300, borderRadius: 28, overflow: "hidden", shadowColor: g1, shadowOpacity: 0.45, shadowRadius: 22, shadowOffset: { width: 0, height: 14 }, elevation: 12 }}>
                 <AppImage uri={p.image_url} seed={p._id} style={{ position: "absolute", width: "100%", height: "100%" }} />
                 <LinearGradient colors={[g0 + "26", "rgba(6,6,14,0.55)", "rgba(6,6,14,0.95)"] as any} locations={[0, 0.45, 1]} style={{ position: "absolute", width: "100%", height: "100%" }} />
-                <DiagonalStripes color={g0} opacity={0.12} gap={20} w={7} />
 
                 {/* foil sweep */}
                 <Animated.View
