@@ -94,15 +94,32 @@ export default function AdminUsers() {
                 </Pressable>
 
                 {tab === "all" ? (
-                  <AAction
-                    label="Delete account"
-                    hint="Moves the user to the recycle bin."
-                    cta="Delete"
-                    tone="danger"
-                    Icon={Trash2}
-                    busy={busy === `del${id}`}
-                    onPress={() => run(`del${id}`, () => usersApi.remove(u.email), `${u.name || u.email} moved to the recycle bin.`)}
-                  />
+                  <>
+                    <AAction
+                      label={u.is_verified ? "Revoke verified status" : "Verify user (Grant blue tick)"}
+                      hint={u.is_verified ? "Removes the official verified badge from this profile." : "Gives this contestant the official blue tick badge."}
+                      cta={u.is_verified ? "Unverify" : "Verify"}
+                      tone={u.is_verified ? "danger" : "success"}
+                      Icon={ShieldCheck}
+                      busy={busy === `ver${id}`}
+                      onPress={() =>
+                        run(
+                          `ver${id}`,
+                          () => (u.is_verified ? usersApi.unverify(u.email || id) : usersApi.verify(u.email || id)),
+                          u.is_verified ? `${u.name || u.email} is now unverified.` : `${u.name || u.email} verified with blue tick!`
+                        )
+                      }
+                    />
+                    <AAction
+                      label="Delete account"
+                      hint="Moves the user to the recycle bin."
+                      cta="Delete"
+                      tone="danger"
+                      Icon={Trash2}
+                      busy={busy === `del${id}`}
+                      onPress={() => run(`del${id}`, () => usersApi.remove(u.email), `${u.name || u.email} moved to the recycle bin.`)}
+                    />
+                  </>
                 ) : (
                   <>
                     <AAction
