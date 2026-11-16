@@ -8,10 +8,16 @@ import { LinearGradient } from "expo-linear-gradient";
 import LottieView from "lottie-react-native";
 import { useAudioPlayer } from "expo-audio";
 import * as Haptics from "expo-haptics";
-import { ArrowLeft, Minus, Plus, Check, Ticket as TicketIcon, Users, ArrowUpRight } from "lucide-react-native";
+import {
+  ArrowLeft, Minus, Plus, Check, Ticket as TicketIcon, Users,
+  ArrowUpRight, Sparkles, ShieldCheck, Crown, Coins, CheckCircle2,
+} from "lucide-react-native";
 import { useTheme } from "@/theme/ThemeProvider";
 import { useSession } from "@/context/Session";
-import { activitiesApi, bookingsApi, paymentsApi, registrationsApi, ApiError, type TicketTier } from "@/lib/api";
+import {
+  activitiesApi, bookingsApi, paymentsApi, registrationsApi,
+  extrasApi, safe, ApiError, type TicketTier,
+} from "@/lib/api";
 import { getEventById } from "@/lib/events";
 import { Txt, Card, Button, Field, Input, Alert, Skeleton, GradientText, Glow } from "@/components/ui";
 import { useAlert } from "@/components/Popup";
@@ -23,6 +29,63 @@ import {
   type RazorpaySuccess,
 } from "@/components/RazorpayCheckout";
 import { formatINR, formatEventDate, isBookable, isPastEvent } from "@/lib/format";
+
+type SeatingZoneMeta = {
+  badge: string;
+  zoneTitle: string;
+  zoneSubtitle: string;
+  themeColor: string;
+  perks: string[];
+};
+
+function getSeatingZoneMeta(name: string, price?: number): SeatingZoneMeta {
+  const n = (name || "").toLowerCase();
+  const isFree = (price !== undefined && Number(price) === 0) || n.includes("free");
+
+  if (n.includes("plat") || n.includes("vip") || n.includes("royal") || n.includes("front") || n.includes("diamond")) {
+    return {
+      badge: "💎 PLATINUM / VIP",
+      zoneTitle: "Platinum VIP Lounge",
+      zoneSubtitle: "Front Row Prime Sightline · VIP Hospitality",
+      themeColor: "#c084fc",
+      perks: ["Front-Row Prime Stage Sightline", "Fast-Track VIP Gate Entry", "Complimentary Lounge Access", "Artist & Judge Stage Proximity"],
+    };
+  }
+  if (n.includes("gold") || n.includes("exec") || n.includes("middle") || n.includes("premier")) {
+    return {
+      badge: "👑 GOLD / EXECUTIVE",
+      zoneTitle: "Gold Executive Field",
+      zoneSubtitle: "Center Stage Elevated Perspective · Direct Eye Level",
+      themeColor: "#fbbf24",
+      perks: ["Direct Center-Stage Eye Level", "Optimal Audio & Visual Sweet Spot", "Comfortable Arena Spacing", "Express Check-In Desk"],
+    };
+  }
+  if (n.includes("silver") || n.includes("standard") || n.includes("mezz")) {
+    return {
+      badge: "⭐ SILVER / STANDARD",
+      zoneTitle: "Silver Elevated Tier",
+      zoneSubtitle: "Full Arena Panorama · Excellent Value",
+      themeColor: "#94a3b8",
+      perks: ["Elevated Panoramic Stage View", "High Quality Stadium Sound", "Dedicated Tier Restrooms", "Digital Matchday Pass"],
+    };
+  }
+  if (isFree) {
+    return {
+      badge: "🎁 FREE ENTRY PASS",
+      zoneTitle: "General Free Admission",
+      zoneSubtitle: "Full Arena Access · 100% Free Official Entry",
+      themeColor: "#34d399",
+      perks: ["100% Free Official Entry Pass", "Digital QR Check-in at Gate", "Full Show & Stage View Access", "Instant Admission Pass"],
+    };
+  }
+  return {
+    badge: n.includes("bronze") ? "🥉 BRONZE / GENERAL" : "🎫 GENERAL ADMISSION",
+    zoneTitle: n.includes("bronze") ? "Bronze Arena" : "General Field",
+    zoneSubtitle: "High Energy Arena Atmosphere · Unbeatable Value",
+    themeColor: "#38bdf8",
+    perks: ["Panoramic Full Arena View", "Electrifying Crowd Energy", "Budget-Friendly Official Admission", "Access to Concessions & Merch"],
+  };
+}
 
 export default function Book() {
   const { c } = useTheme();
@@ -40,7 +103,9 @@ export default function Book() {
   const [tiersError, setTiersError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
-  const [names, setNames] = useState<string[]>([""]);
+  const [names, setNames] = useState<string[]>([user?.name || ""]);
+  const [userCoins, setUserCoins] = useState(0);
+  const [useCoins, setUseCoins] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const alert = useAlert();
   const setError = (m: string | null, tone: "error" | "warning" = "error") => {
@@ -71,21 +136,35 @@ export default function Book() {
       })
       .catch((e) => !cancelled && setTiersError(e?.message || "Could not load ticket types."))
       .finally(() => !cancelled && setLoadingTiers(false));
+
+    if (user) {
+      extrasApi.coins()
+        .then((c) => { if (!cancelled) setUserCoins(c?.total_coins || 0); })
+        .catch(() => {});
+    }
+
     return () => { cancelled = true; };
-  }, [id]);
+  }, [id, user]);
 
   useEffect(() => {
     setNames((prev) => {
       const next = [...prev];
       next.length = qty;
-      for (let i = 0; i < qty; i++) if (next[i] === undefined) next[i] = "";
+      for (let i = 0; i < qty; i++) {
+        if (next[i] === undefined) next[i] = i === 0 && user?.name ? user.name : "";
+      }
       return next;
     });
-  }, [qty]);
+  }, [qty, user?.name]);
 
   const tier = tiers.find((t) => t._id === selected) || null;
   const total = (tier?.price || 0) * qty;
   const maxQty = Math.min(tier?.available ?? 10, 10);
+  const zone = tier ? getSeatingZoneMeta(tier.type, tier.price) : null;
+
+  const maxCoinsUsable = Math.min(userCoins, Math.floor((total * 0.2) / 0.5));
+  const coinDiscount = useCoins && maxCoinsUsable > 0 ? Math.round(maxCoinsUsable * 0.5) : 0;
+  const payableTotal = Math.max(0, total - coinDiscount);
 
   const finish = (ref?: string) => {
     setSubmitting(false);
@@ -112,7 +191,7 @@ export default function Book() {
       reference: booking.booking_reference,
       options: {
         key,
-        amount: info.amount_paise ?? Math.round(total * 100),
+        amount: info.amount_paise ?? Math.round(payableTotal * 100),
         currency: info.currency || "INR",
         name: info.checkout_data?.name || "Upgrade Talents India",
         description: info.checkout_data?.description || `Tickets — ${eventTitle}`,
@@ -347,6 +426,25 @@ export default function Book() {
           </View>
         )}
 
+        {/* Seating Zone Perks & Sightlines (matches website BookingFlow) */}
+        {zone ? (
+          <View style={{ marginTop: 14, padding: 16, borderRadius: 20, backgroundColor: "#14161E", borderWidth: 1, borderColor: zone.themeColor + "55" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <Txt size={11.5} font="monoMed" tracking={1.5} style={{ color: zone.themeColor }}>{zone.badge}</Txt>
+              <Txt size={11} font="sansBold" style={{ color: "#9ea3b8" }}>{zone.zoneTitle}</Txt>
+            </View>
+            <Txt size={13.5} font="sansBold" style={{ color: "#ffffff", marginTop: 6 }}>{zone.zoneSubtitle}</Txt>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+              {zone.perks.map((p, idx) => (
+                <View key={idx} style={{ flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8, backgroundColor: "rgba(255,255,255,0.06)" }}>
+                  <CheckCircle2 size={12} color={zone.themeColor} />
+                  <Txt size={11} style={{ color: "#d1d5db" }}>{p}</Txt>
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : null}
+
         {/* Quantity + holders */}
         {tier ? (
           <>
@@ -360,11 +458,47 @@ export default function Book() {
             <Txt size={11} font="monoMed" tone="subtle" tracking={2.5} uppercase style={{ marginTop: 28, marginBottom: 12 }}>Ticket holders</Txt>
             <View style={{ gap: 12 }}>
               {names.map((n, i) => (
-                <Field key={i} label={`Holder ${i + 1}`}>
+                <Field key={i} label={i === 0 ? "Ticket 1 (Primary Attendee)" : `Ticket ${i + 1} (Guest)`}>
                   <Input value={n} onChangeText={(v) => setNames((prev) => prev.map((x, idx) => (idx === i ? v : x)))} placeholder="Full name" />
                 </Field>
               ))}
             </View>
+
+            {/* UTI Coins discount redemption */}
+            {userCoins > 0 && total > 0 ? (
+              <Pressable
+                onPress={() => {
+                  Haptics.selectionAsync().catch(() => {});
+                  setUseCoins((v) => !v);
+                }}
+                style={{
+                  marginTop: 20,
+                  padding: 14,
+                  borderRadius: 18,
+                  backgroundColor: useCoins ? "rgba(201, 242, 74, 0.12)" : "#14161E",
+                  borderWidth: 1,
+                  borderColor: useCoins ? "#C9F24A" : "rgba(255, 255, 255, 0.08)",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 12,
+                }}
+              >
+                <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: "rgba(201,242,74,0.18)", alignItems: "center", justifyContent: "center" }}>
+                  <Coins size={18} color="#C9F24A" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Txt size={13.5} font="sansBold" style={{ color: "#ffffff" }}>
+                    {useCoins ? `Applied ${maxCoinsUsable} UTI Coins` : `Use ${maxCoinsUsable} UTI Coins`}
+                  </Txt>
+                  <Txt size={12} style={{ color: useCoins ? "#C9F24A" : "#9ea3b8" }}>
+                    {useCoins ? `Saving ₹${coinDiscount} instantly` : `Balance: ${userCoins} coins · Save ₹${Math.round(maxCoinsUsable * 0.5)}`}
+                  </Txt>
+                </View>
+                <View style={{ width: 22, height: 22, borderRadius: 999, borderWidth: 2, borderColor: useCoins ? "#C9F24A" : "#9ea3b8", backgroundColor: useCoins ? "#C9F24A" : "transparent", alignItems: "center", justifyContent: "center" }}>
+                  {useCoins ? <Check size={13} color="#08090C" strokeWidth={3} /> : null}
+                </View>
+              </Pressable>
+            ) : null}
           </>
         ) : null}
       </ScrollView>
@@ -393,10 +527,23 @@ export default function Book() {
         <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, paddingHorizontal: 20, paddingTop: 14, paddingBottom: insets.bottom + 14, backgroundColor: "rgba(20, 22, 30, 0.96)", borderTopWidth: 1, borderTopColor: "rgba(255, 255, 255, 0.1)", flexDirection: "row", alignItems: "center", gap: 14 }}>
           <View>
             <Txt size={11} font="monoMed" tone="subtle" tracking={1.5} uppercase>Total</Txt>
-            <Txt size={22} font="display" style={{ color: "#FF385C" }}>{total > 0 ? formatINR(total) : "Free"}</Txt>
+            <View style={{ flexDirection: "row", alignItems: "baseline", gap: 6 }}>
+              <Txt size={22} font="display" style={{ color: "#FF385C" }}>{payableTotal > 0 ? formatINR(payableTotal) : "Free"}</Txt>
+              {coinDiscount > 0 ? (
+                <Txt size={12} style={{ color: "#9ea3b8", textDecorationLine: "line-through" }}>{formatINR(total)}</Txt>
+              ) : null}
+            </View>
           </View>
           <View style={{ flex: 1 }}>
-            <Button label={closed ? closedLabel : submitting ? "Processing" : total > 0 ? `Pay ${formatINR(total)}` : "Confirm free ticket"} disabled={closed} full size="lg" loading={submitting} onPress={purchase} icon={<TicketIcon size={17} color={c.onAccent} />} />
+            <Button
+              label={closed ? closedLabel : submitting ? "Processing" : payableTotal > 0 ? `Pay ${formatINR(payableTotal)}` : "Confirm free ticket"}
+              disabled={closed}
+              full
+              size="lg"
+              loading={submitting}
+              onPress={purchase}
+              icon={<TicketIcon size={17} color={c.onAccent} />}
+            />
           </View>
         </View>
       ) : null}

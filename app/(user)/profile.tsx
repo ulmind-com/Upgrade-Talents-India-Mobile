@@ -342,8 +342,9 @@ export default function Profile() {
               <View style={cardContainerStyle}>
                 <MenuRow Icon={Trophy} label="Competitions hub" onPress={() => nav("/(more)/competitions")} />
                 <MenuRow Icon={BarChart3} label="Live leaderboard" onPress={() => nav("/(more)/leaderboard")} />
-                <MenuRow Icon={Award} label="Certificates" onPress={() => nav("/(more)/certificates")} />
-                <MenuRow Icon={ShieldCheck} label="Aadhaar KYC verification" onPress={() => nav("/(more)/kyc")} last />
+                <MenuRow Icon={Award} label="My certificates & badges" onPress={() => nav("/(more)/certificates")} />
+                <MenuRow Icon={ShieldCheck} label="Verify certificate" onPress={() => nav("/(more)/verify")} />
+                <MenuRow Icon={BadgeCheck} label="Aadhaar KYC verification" onPress={() => nav("/(more)/kyc")} last />
               </View>
             </View>
           </FadeInUp>
