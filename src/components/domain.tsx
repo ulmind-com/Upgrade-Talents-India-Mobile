@@ -8,6 +8,7 @@ import { Txt } from "@/components/ui";
 import { AppImage } from "@/components/AppImage";
 import { formatINR, splitDate, formatEventDate, countdownParts, titleCase, isPastEvent, isDeadlinePassed } from "@/lib/format";
 import { seatsLeft, type EventItem, type CourseItem } from "@/lib/api";
+import { playNavFeedback } from "@/lib/sound";
 
 /* ─────────────── Zomato District Page Header ─────────────── */
 export function PageHeader({
@@ -89,14 +90,14 @@ export function EventCard({
 
   const toggleBookmark = (e: any) => {
     e.stopPropagation();
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    playNavFeedback();
     setBookmarked(!bookmarked);
   };
 
   return (
     <Pressable
       onPress={() => {
-        Haptics.selectionAsync().catch(() => {});
+        playNavFeedback();
         onPress();
       }}
       style={({ pressed }) => ({
@@ -118,7 +119,7 @@ export function EventCard({
         }}
       >
         {/* Banner with dark bottom gradient */}
-        <View style={{ height: 180, backgroundColor: "#0e1016" }}>
+        <View style={{ height: 180, backgroundColor: "#0b0b0e" }}>
           <AppImage uri={ev.image_url} seed={ev._id || index} style={{ width: "100%", height: "100%", opacity: over ? 0.5 : 1 }} />
           <LinearGradient
             colors={["rgba(8, 9, 12, 0.2)", "transparent", "rgba(8, 9, 12, 0.95)"]}
@@ -273,7 +274,7 @@ export function CourseCard({
   return (
     <Pressable
       onPress={() => {
-        Haptics.selectionAsync().catch(() => {});
+        playNavFeedback();
         if (onPress) onPress();
       }}
       style={({ pressed }) => ({
@@ -294,7 +295,7 @@ export function CourseCard({
           elevation: 5,
         }}
       >
-        <View style={{ height: 160, backgroundColor: "#0e1016" }}>
+        <View style={{ height: 160, backgroundColor: "#0b0b0e" }}>
           <AppImage uri={item.thumbnail} seed={item._id || index} style={{ width: "100%", height: "100%" }} />
           <LinearGradient
             colors={["rgba(8, 9, 12, 0.2)", "transparent", "rgba(8, 9, 12, 0.95)"]}

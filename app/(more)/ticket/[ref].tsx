@@ -9,8 +9,9 @@ import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Haptics from "expo-haptics";
-import { ArrowLeft, CalendarDays, MapPin, User as UserIcon, Download, CheckCircle2, Share2, Ticket as TicketIcon, Ban, CalendarX } from "lucide-react-native";
+import { ArrowLeft, CalendarDays, MapPin, User as UserIcon, Download, CheckCircle2, Share2, Ticket as TicketIcon, Ban, CalendarX, Mail } from "lucide-react-native";
 import { useTheme } from "@/theme/ThemeProvider";
+import { bookingsApi } from "@/lib/api";
 import { getEventById } from "@/lib/events";
 import { useAsync } from "@/lib/useAsync";
 import { Txt, Skeleton, Glow } from "@/components/ui";
@@ -221,6 +222,21 @@ export default function TicketDetail() {
     setShareOpen(true);
   };
 
+  const [emailing, setEmailing] = useState(false);
+  const emailTicket = async () => {
+    setEmailing(true);
+    Haptics.selectionAsync().catch(() => {});
+    try {
+      await bookingsApi.sendTicketEmail(String(p.ref));
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      popup.show("success", "Pass emailed", "Your admission pass & QR are on the way to your inbox.");
+    } catch (e: any) {
+      popup.show("error", "Couldn't email the pass", reasonOf(e) || "Please try again in a moment.");
+    } finally {
+      setEmailing(false);
+    }
+  };
+
   const statusTone = checked ? c.success : expired ? DEAD : LITE;
 
   return (
@@ -373,6 +389,9 @@ export default function TicketDetail() {
             <Download size={17} color="#fff" />
             <Txt size={14.5} font="sansBold" tracking={0.4} style={{ color: "#fff" }}>{busy ? "Preparing…" : "Download ticket"}</Txt>
           </LinearGradient>
+        </Pressable>
+        <Pressable onPress={emailTicket} disabled={emailing} style={({ pressed }) => ({ width: 56, height: 56, borderRadius: 18, alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: LITE + "66", backgroundColor: LITE + "14", opacity: emailing ? 0.6 : 1, transform: [{ scale: pressed ? 0.95 : 1 }] })}>
+          <Mail size={19} color={LITE} />
         </Pressable>
         <Pressable onPress={shareTicket} disabled={busy} style={({ pressed }) => ({ width: 56, height: 56, borderRadius: 18, alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: LITE + "66", backgroundColor: LITE + "14", transform: [{ scale: pressed ? 0.95 : 1 }] })}>
           <Share2 size={19} color={LITE} />

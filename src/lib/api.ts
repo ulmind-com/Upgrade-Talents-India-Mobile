@@ -6,7 +6,7 @@
  * persisted to SecureStore by the auth providers.
  */
 import * as SecureStore from "expo-secure-store";
-import { DEFAULT_API_BASE } from "./config";
+import { DEFAULT_API_BASE, WEBAUTHN_ORIGIN } from "./config";
 
 /* ─────────────── base url (live-overridable) ─────────────── */
 let API_BASE = DEFAULT_API_BASE;
@@ -101,6 +101,7 @@ type Opts = {
   query?: Record<string, string | number | boolean | undefined | null>;
   auth?: Auth;
   raw?: boolean;
+  headers?: Record<string, string>;
 };
 
 export async function apiFetch<T = any>(path: string, opts: Opts = {}): Promise<T> {
@@ -122,6 +123,9 @@ export async function apiFetch<T = any>(path: string, opts: Opts = {}): Promise<
     const t = auth === "user" ? mem.user : auth === "reg" ? mem.reg : auth === "staff" ? mem.staff : mem.admin;
     if (t) headers["Authorization"] = `Bearer ${t}`;
   }
+  // Explicit per-call headers (e.g. the WebAuthn Origin the backend derives its
+  // rp_id from). Native apps may set Origin, which browsers forbid.
+  if (opts.headers) Object.assign(headers, opts.headers);
 
   let status: number;
   let text: string;
@@ -278,6 +282,7 @@ export type TestimonialItem = {
   role?: string;
   profile_image?: string;
   message: string;
+  rating?: number;
   /* Every homepage list carries these; the app honours all three. */
   is_published?: boolean;
   is_visible?: boolean;
@@ -406,21 +411,39 @@ export type MyTicket = {
    USER / PUBLIC API  (frontend)
    ═══════════════════════════════════════════════════════════ */
 export const publicApi = {
-  homepage: () => apiFetch<HomepagePayload>("/api/v1/homepage"),
-  settings: () => apiFetch<Record<string, any>>("/api/v1/website-settings"),
+  /* Each v1 call falls back to its /api/public mirror if v1 is unavailable. */
+  homepage: () => apiFetch<HomepagePayload>("/api/v1/homepage").catch(() => apiFetch<HomepagePayload>("/api/public/homepage")),
+  settings: () => apiFetch<Record<string, any>>("/api/v1/website-settings").catch(() => apiFetch<Record<string, any>>("/api/public/website-settings")),
   upcomingEvents: (p: { skip?: number; limit?: number; search?: string } = {}) =>
-    apiFetch<EventItem[]>("/api/v1/events/upcoming", { query: p }),
-  liveEvents: () => apiFetch<LiveEventItem[]>("/api/v1/events/live"),
-  banners: () => apiFetch<BannerItem[]>("/api/v1/banners"),
-  testimonials: () => apiFetch<TestimonialItem[]>("/api/v1/testimonials"),
-  courses: (p: { skip?: number; limit?: number } = {}) => apiFetch<CourseItem[]>("/api/v1/courses", { query: p }),
+    apiFetch<EventItem[]>("/api/v1/events/upcoming", { query: p }).catch(() => apiFetch<EventItem[]>("/api/public/events/upcoming", { query: p })),
+  liveEvents: () => apiFetch<LiveEventItem[]>("/api/v1/events/live").catch(() => apiFetch<LiveEventItem[]>("/api/public/events/live")),
+  banners: () => apiFetch<BannerItem[]>("/api/v1/banners").catch(() => apiFetch<BannerItem[]>("/api/public/banners")),
+  testimonials: () => apiFetch<TestimonialItem[]>("/api/v1/testimonials").catch(() => apiFetch<TestimonialItem[]>("/api/public/testimonials")),
+  /* Individual homepage sections (the bundled /homepage already carries these,
+     but each is also fetchable on its own; v1 → public fallback). */
+  homepageSections: () => apiFetch<any[]>("/api/v1/homepage-sections").catch(() => apiFetch<any[]>("/api/public/homepage-sections")),
+  sponsorPopup: () => apiFetch<any>("/api/v1/sponsor-popup").catch(() => apiFetch<any>("/api/public/sponsor-popup")),
+  stageMoments: () => apiFetch<any[]>("/api/v1/stage-moments").catch(() => apiFetch<any[]>("/api/public/stage-moments")),
+  spotlightSection: () => apiFetch<any>("/api/v1/spotlight-section").catch(() => apiFetch<any>("/api/public/spotlight-section")),
+  partnersSection: () => apiFetch<any>("/api/v1/partners-section").catch(() => apiFetch<any>("/api/public/partners-section")),
+  upcomingCompetitions: (p: { skip?: number; limit?: number; search?: string } = {}) =>
+    apiFetch<any[]>("/api/v1/competitions/upcoming", { query: p }).catch(() => apiFetch<any[]>("/api/public/competitions/upcoming", { query: p })),
+  /** Universal share resolver → structured share links + social metadata (json=true). */
+  shareEvent: (eventId: string) =>
+    apiFetch<any>(`/api/v1/share/event/${encodeURIComponent(eventId)}`, { query: { json: true } })
+      .catch(() => apiFetch<any>(`/api/public/share/event/${encodeURIComponent(eventId)}`, { query: { json: true } })),
+  shareCompetition: (compId: string) =>
+    apiFetch<any>(`/api/v1/share/competition/${encodeURIComponent(compId)}`, { query: { json: true } })
+      .catch(() => apiFetch<any>(`/api/public/share/competition/${encodeURIComponent(compId)}`, { query: { json: true } })),
+  courses: (p: { skip?: number; limit?: number } = {}) =>
+    apiFetch<CourseItem[]>("/api/v1/courses", { query: p }).catch(() => apiFetch<CourseItem[]>("/api/public/courses", { query: p })),
   workshops: (p: { skip?: number; limit?: number } = {}) =>
-    apiFetch<CourseItem[]>("/api/v1/workshops", { query: p }),
-  contestPromotions: () => apiFetch<ContestPromotion[]>("/api/v1/contest-promotions"),
-  appPromotion: () => apiFetch<Record<string, any>>("/api/v1/app-promotion"),
-  contactInfo: () => apiFetch<Record<string, any>>("/api/v1/contact-info"),
-  importantLinks: () => apiFetch<any[]>("/api/v1/important-links"),
-  competitions: (p: { skip?: number; limit?: number; search?: string } = {}) =>
+    apiFetch<CourseItem[]>("/api/v1/workshops", { query: p }).catch(() => apiFetch<CourseItem[]>("/api/public/workshops", { query: p })),
+  contestPromotions: () => apiFetch<ContestPromotion[]>("/api/v1/contest-promotions").catch(() => apiFetch<ContestPromotion[]>("/api/public/contest-promotions")),
+  appPromotion: () => apiFetch<Record<string, any>>("/api/v1/app-promotion").catch(() => apiFetch<Record<string, any>>("/api/public/app-promotion")),
+  contactInfo: () => apiFetch<Record<string, any>>("/api/v1/contact-info").catch(() => apiFetch<Record<string, any>>("/api/public/contact-info")),
+  importantLinks: () => apiFetch<any[]>("/api/v1/important-links").catch(() => apiFetch<any[]>("/api/public/important-links")),
+  competitions: (p: { skip?: number; limit?: number; search?: string; category?: string } = {}) =>
     apiFetch<any[]>("/api/activities/competitions", { query: { limit: 50, ...p } }),
   leaderboard: (id: string) =>
     apiFetch<{ ranking_mode?: string; leaderboard?: any[]; categories?: string[]; category_leaderboards?: Record<string, any[]> }>(
@@ -494,11 +517,46 @@ export const competeApi = {
 
   /** Paid entries settle through Razorpay like everything else. */
   verifyPayment: (id: string, body: {
-    order_reference: string;
+    order_reference?: string;
+    registration_reference?: string;
     razorpay_order_id: string;
     razorpay_payment_id: string;
     razorpay_signature: string;
   }) => apiFetch<any>(`/api/v1/competitions/${id}/verify-payment`, { method: "POST", auth: "user", body }),
+
+  /** All published competitions grouped by category. */
+  byCategory: () => apiFetch<any>("/api/v1/competitions/by-category"),
+
+  /** Shareable deep-link + pre-composed text + social share links. */
+  share: (id: string) => apiFetch<{
+    share_url?: string; page_url?: string; registration_url?: string; share_text?: string;
+    image_url?: string; title?: string;
+    social_share_links?: { whatsapp?: string; facebook?: string; twitter?: string; linkedin?: string; telegram?: string };
+    [k: string]: any;
+  }>(`/api/v1/competitions/${id}/share`),
+
+  /** Authoritative real-time registration window + capacity + is-open-now. */
+  registrationStatus: (id: string) => apiFetch<any>(`/api/v1/competitions/${id}/registration-status`),
+
+  /** Eligibility for a specific category (age/DOB aware). */
+  categoryEligibility: (id: string, category: string, date_of_birth?: string) =>
+    apiFetch<{ eligible: boolean; status?: string; reason?: string }>(
+      `/api/v1/competitions/${id}/categories/${encodeURIComponent(category)}/eligibility`,
+      { auth: "user", query: { category, ...(date_of_birth ? { date_of_birth } : {}) } }
+    ),
+
+  /** Register in a specific category — idempotent, with age/fee/cash safety. */
+  registerInCategory: (id: string, category: string, opts: { rules_accepted?: boolean; payment_method?: "ONLINE" | "CASH"; date_of_birth?: string; idempotencyKey?: string } = {}) =>
+    apiFetch<any>(`/api/v1/competitions/${id}/categories/${encodeURIComponent(category)}/register`, {
+      method: "POST", auth: "user",
+      query: {
+        rules_accepted: opts.rules_accepted ?? true,
+        payment_method: opts.payment_method ?? "ONLINE",
+        category,
+        ...(opts.date_of_birth ? { date_of_birth: opts.date_of_birth } : {}),
+      },
+      headers: { "Idempotency-Key": opts.idempotencyKey || `reg:${id}:${category}` },
+    }),
 };
 
 /** Public competition feeds — readable without signing in. */
@@ -521,39 +579,7 @@ export const publicCompetitionsApi = {
 
 /** Homepage featured tiles — the admin-curated promo grid. */
 export const featuredApi = {
-  tiles: () => apiFetch<any[]>("/api/v1/featured-tiles"),
-};
-
-/**
- * Aadhaar KYC through DigiLocker. The OTP round-trip is the only path the
- * app uses — the redirect-based `initiate`/`callback` pair needs a browser.
- */
-export const kycApi = {
-  status: () => apiFetch<any>("/api/kyc/status", { auth: "user" }),
-  sendOtp: (aadhaar_number: string) =>
-    apiFetch<{ success: boolean; message: string; reference_id: string; masked_mobile?: string; mode?: string }>(
-      "/api/kyc/digilocker/send-otp",
-      { method: "POST", body: { aadhaar_number }, auth: "user" }
-    ),
-  verifyOtp: (reference_id: string, otp: string) =>
-    apiFetch<{
-      success: boolean;
-      kyc_status: string;
-      aadhaar_masked?: string;
-      message: string;
-      verified_details?: { name?: string; date_of_birth?: string; gender?: string; address?: string };
-    }>("/api/kyc/digilocker/verify-otp", { method: "POST", body: { reference_id, otp }, auth: "user" }),
-  verifyDocument: (form: FormData) =>
-    apiFetch<any>("/api/kyc/verify-document", { method: "POST", form, auth: "user" }),
-
-  /* DigiLocker consent flow — opened in a browser, then polled. */
-  digilockerAuthorize: (redirect_uri?: string) =>
-    apiFetch<{ success: boolean; authorization_url: string; state: string; message: string }>(
-      "/api/digilocker/authorize",
-      { auth: "user", query: { format: "json", ...(redirect_uri ? { redirect_uri } : {}) } }
-    ),
-  digilockerStatus: () => apiFetch<any>("/api/digilocker/status", { auth: "user" }),
-  digilockerRevoke: () => apiFetch<any>("/api/digilocker/revoke", { method: "POST", auth: "user", body: {} }),
+  tiles: () => apiFetch<any[]>("/api/v1/featured-tiles").catch(() => apiFetch<any[]>("/api/public/featured-tiles")),
 };
 
 /* ─────────────── SHOP (merchandise) ─────────────── */
@@ -576,6 +602,10 @@ export const shopApi = {
     apiFetch<any>("/api/merchandise/orders", { auth: "user", query: { limit: 50, ...p } }),
   order: (orderId: string) => apiFetch<any>(`/api/merchandise/orders/${orderId}`, { auth: "user" }),
   orderTracking: (orderId: string) => apiFetch<any>(`/api/merchandise/orders/${orderId}/tracking`, { auth: "user" }),
+  /** Absolute URL of the authoritative Tax Invoice PDF — fetch with the user's
+   * Bearer token in the Authorization header (never put the token in the URL). */
+  invoiceUrl: (orderId: string, download = true) =>
+    `${getApiBase()}/api/merchandise/orders/${encodeURIComponent(orderId)}/invoice.pdf${download ? "?download=true" : ""}`,
   cancelOrder: (orderId: string, reason?: string) =>
     apiFetch<any>(`/api/merchandise/orders/${orderId}/cancel`, { method: "POST", auth: "user", body: { reason } }),
 };
@@ -612,10 +642,13 @@ export const activitiesApi = {
     apiFetch<TicketTier[]>("/api/activities/tickets", {
       query: { event_id, limit: p.limit ?? 20, skip: p.skip ?? 0 },
     }),
-  competitions: (p: { skip?: number; limit?: number; search?: string } = {}) =>
+  competitions: (p: { skip?: number; limit?: number; search?: string; category?: string } = {}) =>
     apiFetch<any[]>("/api/activities/competitions", { query: p }),
   merchandise: (p: { skip?: number; limit?: number; search?: string } = {}) =>
     apiFetch<any[]>("/api/activities/merchandise", { query: p }),
+  /** Activities courses feed (paginated + search), per the activities API. */
+  courses: (p: { skip?: number; limit?: number; search?: string } = {}) =>
+    apiFetch<any[]>("/api/activities/courses", { query: p }),
 };
 
 export const authApi = {
@@ -660,12 +693,53 @@ export const authApi = {
     apiFetch<{ message: string; success?: boolean }>("/api/auth/forgot-password/confirm", { method: "POST", body: { email, otp, new_password, confirm_password } }),
 };
 
+/** A registered passkey (WebAuthn credential). Server shapes vary, so loose. */
+export type PasskeyCredential = {
+  id?: string;
+  credential_id?: string;
+  _id?: string;
+  name?: string;
+  device_name?: string;
+  device?: string;
+  created_at?: string;
+  last_used_at?: string;
+  [k: string]: any;
+};
+
+/**
+ * Passkey (WebAuthn) endpoints. Login is options → native authenticator →
+ * verify; the credential routes list and revoke saved passkeys.
+ */
+const WEBAUTHN_HEADERS = { Origin: WEBAUTHN_ORIGIN };
+
+export const passkeyApi = {
+  /* Register (a signed-in user adds a passkey on this device). */
+  registerOptions: () => apiFetch<any>("/api/auth/passkey/register/options", { method: "POST", auth: "user", headers: WEBAUTHN_HEADERS }),
+  registerVerify: (attestation: Record<string, any>) =>
+    apiFetch<any>("/api/auth/passkey/register/verify", { method: "POST", body: attestation, auth: "user", headers: WEBAUTHN_HEADERS }),
+  /* Login (usernameless, discoverable credential). */
+  loginOptions: () => apiFetch<any>("/api/auth/passkey/login/options", { method: "POST", headers: WEBAUTHN_HEADERS }),
+  loginVerify: (assertion: Record<string, any>) =>
+    apiFetch<{ access_token?: string; token_type?: string; [k: string]: any }>("/api/auth/passkey/login/verify", { method: "POST", body: assertion, headers: WEBAUTHN_HEADERS }),
+  /* Manage saved passkeys. */
+  listCredentials: () => apiFetch<PasskeyCredential[]>("/api/auth/passkey/credentials", { auth: "user" }),
+  deleteCredential: (credentialId: string) =>
+    apiFetch<any>(`/api/auth/passkey/credentials/${encodeURIComponent(credentialId)}`, { method: "DELETE", auth: "user" }),
+};
+
 export const profileApi = {
   get: () => apiFetch<any>("/api/profile/me", { auth: "user" }),
   update: (body: any) => apiFetch<any>("/api/profile/me", { method: "PUT", body, auth: "user" }),
   /** Multipart variant, for when a profile photo is part of the change. */
   updateForm: (form: FormData) => apiFetch<any>("/api/profile/me", { method: "PUT", form, auth: "user" }),
   dashboard: () => apiFetch<any>("/api/profile/dashboard", { auth: "user" }),
+  /** JSON profile-complete / update (alt to authApi.completeProfile). */
+  complete: (body: { name?: string; phone_number?: string | number; date_of_birth?: string; address?: string; parent_phone_number?: string | number }) =>
+    apiFetch<any>("/api/profile/complete", { method: "POST", body, auth: "user" }),
+  /** Registered + booked events, flat list + category-wise grouping. */
+  myEvents: () => apiFetch<any>("/api/profile/my-events", { auth: "user" }),
+  /** Registered competitions, flat list + category-wise grouping. */
+  myCompetitions: () => apiFetch<any>("/api/profile/my-competitions", { auth: "user" }),
 };
 
 export const bookingsApi = {
@@ -675,6 +749,9 @@ export const bookingsApi = {
   cancel: (booking_id: string) => apiFetch<any>(`/api/bookings/${booking_id}/cancel`, { method: "POST", auth: "user" }),
   myTickets: () => apiFetch<MyTicket[]>("/api/bookings/my-tickets", { auth: "user" }),
   ticketQr: (ticket_ref: string) => apiFetch<any>(`/api/bookings/tickets/${ticket_ref}/qr`, { auth: "user" }),
+  /** Re-send (or send) the admission pass + QR to the attendee's email inbox. */
+  sendTicketEmail: (ticket_ref: string) =>
+    apiFetch<any>(`/api/bookings/tickets/${encodeURIComponent(ticket_ref)}/send-email`, { method: "POST", auth: "user" }),
 };
 
 export const paymentsApi = {
@@ -696,12 +773,30 @@ export const paymentsApi = {
       },
       auth: "user",
     }),
+
+  /** On-demand reconciliation — recovers payments captured at Razorpay but not
+   * yet marked confirmed (e.g. the app closed before verify, or the webhook was
+   * delayed). The server inspects pending orders and settles the captured ones. */
+  reconcilePending: () => apiFetch<any>("/api/payments/reconcile-pending", { method: "POST", auth: "user" }),
+};
+
+export type RegistrationCreate = {
+  activity_id: string;
+  activity_type: "event" | "competition" | "course" | "workshop" | string;
+  category?: string;
+  coins_to_use?: number;
+  order_reference?: string;
+  payment_method?: "ONLINE" | "CASH";
 };
 
 export const registrationsApi = {
-  create: (body: any) => apiFetch<any>("/api/registrations/", { method: "POST", body, auth: "user" }),
-  remove: (id: string) => apiFetch<any>(`/api/registrations/${id}`, { method: "DELETE", auth: "user" }),
-  verifyPayment: (body: any) => apiFetch<any>("/api/registrations/verify-payment", { method: "POST", body, auth: "user" }),
+  /** Register for an event / competition / course (optionally spending coins). */
+  create: (body: RegistrationCreate) => apiFetch<any>("/api/registrations/", { method: "POST", body, auth: "user" }),
+  /** Cancel a registration by its registration_id. */
+  remove: (id: string) => apiFetch<any>(`/api/registrations/${encodeURIComponent(id)}`, { method: "DELETE", auth: "user" }),
+  /** Verify the Razorpay signature for a paid registration → marks it CONFIRMED. */
+  verifyPayment: (body: { order_reference: string; razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) =>
+    apiFetch<any>("/api/registrations/verify-payment", { method: "POST", body, auth: "user" }),
 };
 
 export const extrasApi = {
@@ -709,13 +804,21 @@ export const extrasApi = {
   notificationList: (p: { is_read?: boolean; notification_type?: string; page?: number; page_size?: number } = {}) =>
     apiFetch<any>("/api/notifications/", { auth: "user", query: { page: 1, page_size: 30, ...p } }),
   unreadCount: () => apiFetch<{ unread_count: number }>("/api/notifications/unread-count", { auth: "user" }),
-  markRead: (id: string) => apiFetch<any>(`/api/notifications/${id}/read`, { method: "PATCH", auth: "user" }),
-  markUnread: (id: string) => apiFetch<any>(`/api/notifications/${id}/unread`, { method: "PATCH", auth: "user" }),
+  notification: (id: string) => apiFetch<any>(`/api/notifications/${encodeURIComponent(id)}`, { auth: "user" }),
+  deleteNotification: (id: string) =>
+    apiFetch<{ success?: boolean; modified_count?: number; message?: string }>(`/api/notifications/${encodeURIComponent(id)}`, { method: "DELETE", auth: "user" }),
+  markRead: (id: string) => apiFetch<any>(`/api/notifications/${encodeURIComponent(id)}/read`, { method: "PATCH", auth: "user" }),
+  markUnread: (id: string) => apiFetch<any>(`/api/notifications/${encodeURIComponent(id)}/unread`, { method: "PATCH", auth: "user" }),
   markAllRead: () => apiFetch<any>("/api/notifications/read-all", { method: "PATCH", auth: "user" }),
   notificationPrefs: () => apiFetch<any>("/api/notifications/preferences", { auth: "user" }),
   updateNotificationPrefs: (body: Record<string, boolean>) =>
     apiFetch<any>("/api/notifications/preferences", { method: "PATCH", auth: "user", body }),
   myCertificates: () => apiFetch<any>("/api/users/me/certificates", { auth: "user" }),
+  certificate: (id: string) => apiFetch<any>(`/api/users/me/certificates/${encodeURIComponent(id)}`, { auth: "user" }),
+  /** Social share metadata + preview link for a certificate. */
+  certificateShare: (id: string) => apiFetch<any>(`/api/users/me/certificates/${encodeURIComponent(id)}/share`, { auth: "user" }),
+  /** Absolute URL of the official certificate PDF — fetch with the Bearer token in the header. */
+  certificateDownloadUrl: (id: string) => `${getApiBase()}/api/users/me/certificates/${encodeURIComponent(id)}/download`,
   myBadges: () => apiFetch<{ total: number; badges: any[] }>("/api/users/me/badges", { auth: "user" }),
   coins: () => apiFetch<{ total_coins: number; history: any[] }>("/api/rewards/coins", { auth: "user" }),
   wallet: () => apiFetch<any>("/api/rewards/wallet", { auth: "user" }),
@@ -1073,36 +1176,90 @@ export type JudgeContestant = {
 };
 
 export const judgeCompetitionsApi = {
+  /** Competitions this judge is assigned to. */
   listAssigned: () => apiFetch<JudgeCompetition[]>("/api/judge/", { auth: "staff" }),
-  listContestants: (compId: string) => apiFetch<JudgeContestant[]>(`/api/judge/${compId}/contestants`, { auth: "staff" }),
-  verifyPin: (compId: string, pin: string) => apiFetch<{ message: string }>(`/api/judge/${compId}/verify-pin`, { method: "POST", body: { pin }, auth: "staff" }),
-  saveDraft: (compId: string, subId: string, scores: Record<string, number>, comments?: string) =>
-    apiFetch<{ message: string }>(`/api/judge/${compId}/contestants/${subId}/draft`, { method: "POST", body: { scores, comments }, auth: "staff" }),
+
+  /** Approved submissions with scoring status (round/category/present-filter aware). */
+  listContestants: (compId: string, opts: { category?: string; only_present?: boolean; round_number?: number } = {}) =>
+    apiFetch<JudgeContestant[]>(`/api/judge/${compId}/contestants`, { auth: "staff", query: {
+      ...(opts.category ? { category: opts.category } : {}),
+      ...(opts.only_present ? { only_present: true } : {}),
+      ...(opts.round_number != null ? { round_number: opts.round_number } : {}),
+    } }),
+
+  /** The official confirmed PRESENT lineup for event-day judging (per round). */
+  finalContestants: (compId: string, opts: { category?: string; round_number?: number } = {}) =>
+    apiFetch<JudgeContestant[]>(`/api/judge/${compId}/final-contestants`, { auth: "staff", query: {
+      ...(opts.category ? { category: opts.category } : {}),
+      ...(opts.round_number != null ? { round_number: opts.round_number } : {}),
+    } }),
+
+  /** The multi-round sequence + active round for an assigned competition. */
+  rounds: (compId: string) => apiFetch<any>(`/api/judge/${compId}/rounds`, { auth: "staff" }),
+  /** Independent leaderboard for a specific round (1st/2nd/3rd rankings). */
+  roundLeaderboard: (compId: string, roundNumber: number, category?: string) =>
+    apiFetch<any>(`/api/judge/${compId}/rounds/${roundNumber}/leaderboard`, { auth: "staff", query: category ? { category } : undefined }),
+
+  verifyPin: (compId: string, pin: string) =>
+    apiFetch<{ message: string }>(`/api/judge/${compId}/verify-pin`, { method: "POST", body: { pin }, auth: "staff" }),
+
+  saveDraft: (compId: string, subId: string, scores: Record<string, number>, comments?: string, round_number?: number) =>
+    apiFetch<{ message: string }>(`/api/judge/${compId}/contestants/${subId}/draft`, { method: "POST", body: { scores, comments, ...(round_number != null ? { round_number } : {}) }, auth: "staff" }),
   getDraft: (compId: string, subId: string) =>
     apiFetch<{ scores?: Record<string, number>; comments?: string }>(`/api/judge/${compId}/contestants/${subId}/draft`, { auth: "staff" }),
+
   skipContestant: (compId: string, subId: string, reason: string) =>
     apiFetch<{ message: string }>(`/api/judge/${compId}/contestants/${subId}/skip`, { method: "POST", body: { reason }, auth: "staff" }),
-  myProgress: (compId: string) =>
-    apiFetch<any>(`/api/judge/${compId}/my-progress`, { auth: "staff" }),
-  sendFeedback: (compId: string, subId: string, feedback: string) =>
-    apiFetch<{ message: string }>(`/api/judge/${compId}/contestants/${subId}/feedback`, { method: "POST", body: { feedback }, auth: "staff" }),
-  submitScore: (subId: string, scores: Record<string, number>, comments?: string) =>
-    apiFetch<{ message: string }>(`/api/judge/submissions/${subId}/scores`, { method: "POST", body: { scores, comments }, auth: "staff" }),
+
+  /** How many this judge has scored / skipped / still pending. */
+  myProgress: (compId: string) => apiFetch<any>(`/api/judge/${compId}/my-progress`, { auth: "staff" }),
+
+  /** Text (and optional audio) feedback for a contestant. */
+  sendFeedback: (compId: string, subId: string, feedback: string, audio_feedback_url?: string) =>
+    apiFetch<{ message: string }>(`/api/judge/${compId}/contestants/${subId}/feedback`, { method: "POST", body: { text_feedback: feedback, ...(audio_feedback_url ? { audio_feedback_url } : {}) }, auth: "staff" }),
+
+  /** Final official score by submission id (one per judge per participant). */
+  submitScore: (subId: string, scores: Record<string, number>, comments?: string, extra?: { participant_id?: string; feedback?: string; round_number?: number }) =>
+    apiFetch<{ message: string }>(`/api/judge/submissions/${subId}/scores`, { method: "POST", body: { scores, comments, ...(extra || {}) }, auth: "staff" }),
+
+  /** Direct competition score (offline stage / multi-round) by participant/registration/email/submission id. */
+  submitCompetitionScore: (compId: string, body: { scores: Record<string, number>; participant_id?: string; comments?: string; feedback?: string; round_number?: number }) =>
+    apiFetch<any>(`/api/judge/${compId}/scores`, { method: "POST", body, auth: "staff" }),
 
   /** Who is on stage right now, in the one-by-one live round. */
   currentPerformer: (compId: string) => apiFetch<any>(`/api/judge/${compId}/current-performer`, { auth: "staff" }),
-  /** Score the live-stage performer (separate from the recorded-submission flow). */
-  scoreLiveStage: (compId: string, body: { submission_id?: string; scores: Record<string, number>; comments?: string }) =>
+  /** The judge live-stage card (alias of current-performer). */
+  liveStage: (compId: string) => apiFetch<any>(`/api/judge/${compId}/live-stage`, { auth: "staff" }),
+  /** One-click score for the performer currently on stage. */
+  scoreLiveStage: (compId: string, body: { submission_id?: string; participant_id?: string; scores: Record<string, number>; comments?: string; feedback?: string; round_number?: number }) =>
     apiFetch<any>(`/api/judge/${compId}/live-stage/score`, { method: "POST", body, auth: "staff" }),
 };
 
 export type TicketScanVerifyResult = {
   is_valid: boolean;
-  ticket: { ticket_ref: string; holder_name: string; holder_email: string; is_checked_in: boolean; check_in_time: string | null };
+  ticket: { ticket_ref: string; holder_name: string; holder_email: string; is_checked_in: boolean; check_in_time: string | null; [k: string]: any };
   booking_status: string;
+  /* multi-person capacity + cash state (loose — shapes vary) */
+  admit_count?: number; max_admit?: number; remaining_admits?: number; admitted_count?: number;
+  is_cash?: boolean; cash_payment?: boolean; cash_amount?: number; cash_status?: string;
+  [k: string]: any;
 };
 
 export const volunteerScannerApi = {
-  verifyTicket: (qr_token: string) => apiFetch<TicketScanVerifyResult>("/api/admin/tickets/verify", { method: "POST", body: { qr_token }, auth: "staff" }),
-  checkInTicket: (qr_token: string) => apiFetch<{ message: string; ticket_ref: string }>("/api/admin/tickets/check-in", { method: "POST", body: { qr_token }, auth: "staff" }),
+  /** Scan a QR → full ticket status, multi-person capacity, cash state. */
+  verifyTicket: (qr_token: string, opts: { event_id?: string; admit_count?: number } = {}) =>
+    apiFetch<TicketScanVerifyResult>("/api/volunteer/tickets/verify", { method: "POST", body: { qr_token, ...opts }, auth: "staff" }),
+  /** Atomically admit attendees (multi-person) and auto-collect cash if requested. */
+  checkInTicket: (qr_token: string, opts: { admit_count?: number; event_id?: string; collect_cash?: boolean; cash_collected?: boolean; cash_amount?: number; notes?: string } = {}) =>
+    apiFetch<{ message?: string; ticket_ref?: string; [k: string]: any }>("/api/volunteer/tickets/check-in", { method: "POST", body: { qr_token, ...opts }, auth: "staff" }),
+  /** Live shift stats for this volunteer (check-ins, cash collected). */
+  stats: (event_id?: string) => apiFetch<any>("/api/volunteer/tickets/stats", { auth: "staff", query: event_id ? { event_id } : undefined }),
+  /** Recent check-ins across the shift. */
+  checkinHistory: (opts: { limit?: number; event_id?: string } = {}) =>
+    apiFetch<any>("/api/volunteer/tickets/checkin-history", { auth: "staff", query: { limit: 50, ...opts } }),
+  /** Mark a cash ticket's payment as collected at the venue. */
+  collectCash: (ticket_ref: string, opts: { qr_token?: string; amount?: number; notes?: string } = {}) =>
+    apiFetch<any>(`/api/volunteer/tickets/${encodeURIComponent(ticket_ref)}/collect-cash`, { method: "POST", body: { ticket_ref, ...opts }, auth: "staff" }),
+  /** Events assigned to this volunteer. */
+  assignedEvents: () => apiFetch<any>("/api/volunteer/tickets/assigned-events", { auth: "staff" }),
 };

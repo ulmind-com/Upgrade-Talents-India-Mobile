@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { View, Pressable, ScrollView, TextInput } from "react-native";
+import { View, Pressable, ScrollView, TextInput, Modal } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import {
@@ -10,6 +10,7 @@ import {
   SkipForward,
   ArrowLeft,
   LogOut,
+  KeyRound,
   Search,
   Radio,
   Star,
@@ -43,6 +44,7 @@ export default function JudgePanel() {
   const [loading, setLoading] = useState(false);
   const [comp, setComp] = useState<JudgeCompetition | null>(null);
   const [subs, setSubs] = useState<JudgeContestant[]>([]);
+  const [prog, setProg] = useState<any>(null);
   const [active, setActive] = useState<JudgeContestant | null>(null);
   const [scores, setScores] = useState<Record<string, string>>({});
   const [comments, setComments] = useState("");
@@ -69,11 +71,17 @@ export default function JudgePanel() {
     if (authed) loadComps();
   }, [authed]);
 
+  const refreshProg = (compId: string) => {
+    judgeCompetitionsApi.myProgress(compId).then(setProg).catch(() => {});
+  };
+
   const openComp = async (cp: JudgeCompetition) => {
     setComp(cp);
+    setProg(null);
     setBusy(true);
     setSubs(toRows(await safe(judgeCompetitionsApi.listContestants(cp._id), [] as any)));
     setBusy(false);
+    refreshProg(cp._id);
   };
 
   const openSub = async (s: JudgeContestant) => {
@@ -150,6 +158,7 @@ export default function JudgePanel() {
       setSubs((prev) =>
         prev.map((s) => (s._id === active._id ? { ...s, is_scored: true } : s))
       );
+      if (comp) refreshProg(comp._id);
       setActive(null);
       setLiveMode(false);
     } catch (e) {
@@ -183,6 +192,7 @@ export default function JudgePanel() {
     try {
       await judgeCompetitionsApi.skipContestant(comp._id, active._id, "Conflict of interest (COI)");
       flash("success", "Marked as conflict of interest.");
+      if (comp) refreshProg(comp._id);
       setActive(null);
     } catch (e) {
       flash("error", e instanceof ApiError ? e.message : "Could not skip.");
@@ -212,21 +222,29 @@ export default function JudgePanel() {
     setActive(null);
   };
 
-  if (!authed) {
-    return (
-      <SubScreen eyebrow="Panel" title="Judge">
-        <StaffLogin
-          api={judgeAuthApi}
-          role="Judge"
-          tint={TINT}
-          blurb="Sign in with the email registered by the organiser to score live."
-          onDone={() => setAuthed(true)}
-        />
-      </SubScreen>
-    );
-  }
+  const [pwOpen, setPwOpen] = useState(false);
+  const [curPw, setCurPw] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [confPw, setConfPw] = useState("");
+  const [pwBusy, setPwBusy] = useState(false);
+  const changePw = async () => {
+    if (!curPw || !newPw) return alert("warning", "Fill all fields", "Enter your current and new password.");
+    if (newPw.length < 8) return alert("warning", "Too short", "New password must be at least 8 characters.");
+    if (newPw !== confPw) return alert("warning", "Doesn't match", "New password and confirmation don't match.");
+    setPwBusy(true);
+    try {
+      await judgeAuthApi.changePassword(curPw, newPw);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      alert("success", "Password updated", "Use your new password next time you sign in.");
+      setPwOpen(false); setCurPw(""); setNewPw(""); setConfPw("");
+    } catch (e: any) {
+      alert("error", "Couldn't change password", e instanceof ApiError ? e.message : "Check your current password and try again.");
+    } finally {
+      setPwBusy(false);
+    }
+  };
 
-  // Filtered contestants
+  // Filtered contestants — computed before any early return so hook order is stable.
   const filteredSubs = useMemo(() => {
     return subs.filter((s: any) => {
       const isScored = Boolean(s.is_scored || s.total_score != null);
@@ -241,6 +259,20 @@ export default function JudgePanel() {
       return true;
     });
   }, [subs, filter, search]);
+
+  if (!authed) {
+    return (
+      <SubScreen eyebrow="Panel" title="Judge">
+        <StaffLogin
+          api={judgeAuthApi}
+          role="Judge"
+          tint={TINT}
+          blurb="Sign in with the email registered by the organiser to score live."
+          onDone={() => setAuthed(true)}
+        />
+      </SubScreen>
+    );
+  }
 
   /* ── Scoring sheet ── */
   if (active && comp) {
@@ -371,6 +403,31 @@ export default function JudgePanel() {
   if (comp) {
     return (
       <SubScreen eyebrow="Judging" title={comp.title} onBack={() => setComp(null)}>
+        {/* Your scoring progress */}
+        {prog ? (() => {
+          const scored = Number(prog.scored ?? prog.scored_count ?? prog.total_scored ?? 0);
+          const skipped = Number(prog.skipped ?? prog.skipped_count ?? 0);
+          const pending = Number(prog.pending ?? prog.pending_count ?? prog.remaining ?? 0);
+          const total = Number(prog.total ?? prog.total_contestants ?? (scored + skipped + pending)) || 1;
+          const pct = Math.min(100, Math.round(((scored + skipped) / total) * 100));
+          return (
+            <View style={{ borderRadius: 18, borderWidth: 1, borderColor: c.border, backgroundColor: c.surface, padding: 14, marginBottom: 16, gap: 10 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                <Txt size={11} font="monoMed" tone="subtle" tracking={2} uppercase>Your progress</Txt>
+                <Txt size={13} font="sansExt" tone="accent">{pct}%</Txt>
+              </View>
+              <View style={{ height: 7, borderRadius: 999, backgroundColor: c.surface2, overflow: "hidden" }}>
+                <View style={{ width: `${pct}%`, height: "100%", borderRadius: 999, backgroundColor: c.accent }} />
+              </View>
+              <View style={{ flexDirection: "row", gap: 18 }}>
+                <Txt size={12.5} tone="muted"><Txt size={12.5} font="sansBold" tone="success">{scored}</Txt> scored</Txt>
+                <Txt size={12.5} tone="muted"><Txt size={12.5} font="sansBold">{pending}</Txt> pending</Txt>
+                {skipped ? <Txt size={12.5} tone="muted"><Txt size={12.5} font="sansBold" tone="warning">{skipped}</Txt> skipped</Txt> : null}
+              </View>
+            </View>
+          );
+        })() : null}
+
         {/* On Stage Live Performer Card */}
         {livePerformer ? (
           <Pressable
@@ -597,21 +654,20 @@ export default function JudgePanel() {
       refreshing={loading}
       onRefresh={loadComps}
       right={
-        <Pressable
-          onPress={logout}
-          style={{
-            width: 42,
-            height: 42,
-            borderRadius: 999,
-            alignItems: "center",
-            justifyContent: "center",
-            borderWidth: 1,
-            borderColor: c.border,
-            backgroundColor: c.surface,
-          }}
-        >
-          <LogOut size={18} color={c.fgMuted} />
-        </Pressable>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <Pressable
+            onPress={() => setPwOpen(true)}
+            style={{ width: 42, height: 42, borderRadius: 999, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: c.border, backgroundColor: c.surface }}
+          >
+            <KeyRound size={18} color={c.fgMuted} />
+          </Pressable>
+          <Pressable
+            onPress={logout}
+            style={{ width: 42, height: 42, borderRadius: 999, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: c.border, backgroundColor: c.surface }}
+          >
+            <LogOut size={18} color={c.fgMuted} />
+          </Pressable>
+        </View>
       }
     >
       <View style={{ borderRadius: 24, overflow: "hidden", marginBottom: 18 }}>
@@ -683,6 +739,33 @@ export default function JudgePanel() {
           subtitle="You'll see competitions here once an organiser assigns you."
         />
       )}
+
+      <Modal visible={pwOpen} transparent animationType="fade" onRequestClose={() => setPwOpen(false)}>
+        <Pressable onPress={() => setPwOpen(false)} style={{ flex: 1, backgroundColor: c.scrim, justifyContent: "flex-end" }}>
+          <Pressable onPress={() => {}} style={{ backgroundColor: c.bgElevated, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, paddingBottom: 40, gap: 16, borderWidth: 1, borderColor: c.border }}>
+            <View style={{ alignSelf: "center", width: 42, height: 5, borderRadius: 999, backgroundColor: c.border }} />
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 11 }}>
+              <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: c.accent + "1f", alignItems: "center", justifyContent: "center" }}>
+                <KeyRound size={20} color={c.accent} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Txt size={17} font="sansBold">Change password</Txt>
+                <Txt size={12.5} tone="muted" style={{ marginTop: 1 }}>Verify your current password, then set a new one.</Txt>
+              </View>
+            </View>
+            <Field label="Current password" required>
+              <Input value={curPw} onChangeText={setCurPw} secureTextEntry autoCapitalize="none" placeholder="••••••••" />
+            </Field>
+            <Field label="New password" required hint="At least 8 characters">
+              <Input value={newPw} onChangeText={setNewPw} secureTextEntry autoCapitalize="none" placeholder="••••••••" />
+            </Field>
+            <Field label="Confirm new password" required>
+              <Input value={confPw} onChangeText={setConfPw} secureTextEntry autoCapitalize="none" placeholder="••••••••" />
+            </Field>
+            <Button label="Update password" full size="lg" loading={pwBusy} onPress={changePw} icon={<Check size={16} color={c.onAccent} />} />
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SubScreen>
   );
 }

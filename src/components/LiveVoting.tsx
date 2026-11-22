@@ -193,25 +193,23 @@ export function LiveVotingBand({
 
   return (
     <View style={{ marginTop: compact ? 30 : 0, marginBottom: compact ? 0 : 22 }}>
-      <View style={{ paddingHorizontal: compact ? 20 : 0, marginBottom: 12 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
+      {/* One head, same as every other section: a pulsing dot carries the
+         urgency so the band does not need its own colour scheme. */}
+      <View style={{ paddingHorizontal: compact ? 20 : 0, marginBottom: 14 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}>
           <Pulse min={0.45} period={1200}>
-            <View style={{ width: 7, height: 7, borderRadius: 999, backgroundColor: ACID }} />
+            <View style={{ width: 9, height: 9, borderRadius: 999, backgroundColor: c.accent }} />
           </Pulse>
-          <Txt size={11} font="monoMed" tracking={2.5} uppercase style={{ color: ACID }}>
-            Voting live{rows.length > 1 ? ` · ${rows.length}` : ""}
-          </Txt>
+          <Txt size={20} font="sansBold" tracking={-0.3} style={{ color: "#fff" }}>{title}</Txt>
+          {rows.length > 1 ? (
+            <View style={{ borderRadius: 999, paddingHorizontal: 8, height: 22, justifyContent: "center", backgroundColor: c.accent + "1f", borderWidth: 1, borderColor: c.accent + "4d" }}>
+              <Txt size={10} font="sansBold" style={{ color: c.accent, letterSpacing: 0.8 }}>{rows.length} OPEN</Txt>
+            </View>
+          ) : null}
         </View>
-        <Txt size={23} font="display" tracking={-0.5} style={{ marginTop: 8 }}>{title}</Txt>
-        <Txt size={13} tone="muted" lh={19} style={{ marginTop: 4 }}>
+        <Txt size={12.5} tone="muted" style={{ marginTop: 4 }}>
           Your vote counts right now — polls close soon.
         </Txt>
-      </View>
-
-      {/* a clean district indicator */}
-      <View style={{ height: 26, marginHorizontal: compact ? 20 : 0, marginBottom: 10, borderRadius: 999, backgroundColor: "rgba(201,242,74,0.08)", borderWidth: 1, borderColor: "rgba(201,242,74,0.22)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 12 }}>
-        <View style={{ width: 6, height: 6, borderRadius: 999, backgroundColor: ACID }} />
-        <Txt size={10} font="sansBold" tracking={1.5} style={{ color: ACID }} uppercase>LIVE VOTING ROUND</Txt>
       </View>
 
       {one ? (

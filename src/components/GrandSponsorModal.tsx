@@ -14,6 +14,7 @@ import * as Haptics from "expo-haptics";
 import { X, Sparkles, ExternalLink, ArrowRight } from "lucide-react-native";
 import { Txt, Button } from "@/components/ui";
 import { AppImage } from "@/components/AppImage";
+import { playNavFeedback } from "@/lib/sound";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 
@@ -60,6 +61,7 @@ export function GrandSponsorModal({
 
       // Small delay for entrance
       const timer = setTimeout(() => {
+        playNavFeedback();
         setOpen(true);
         const autoSec = Number(popup.auto_close_seconds) || 0;
         if (autoSec > 0) {
@@ -79,6 +81,7 @@ export function GrandSponsorModal({
   }, [popup]);
 
   const handleClose = async () => {
+    playNavFeedback();
     setOpen(false);
     sessionSeen = true;
     if (popup?.show_mode === "once_per_day") {
@@ -108,7 +111,7 @@ export function GrandSponsorModal({
     popup.cta_link?.startsWith("http://") || popup.cta_link?.startsWith("https://");
 
   const onCtaPress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    playNavFeedback();
     handleClose();
     if (!popup.cta_link) return;
     if (isExternal) {

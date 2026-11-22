@@ -1,9 +1,10 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import * as SecureStore from "expo-secure-store";
-import { adminAuthApi, authApi, loadApiBase, tokenStore, getApiBase, setUnauthorizedHandler } from "@/lib/api";
+import { adminAuthApi, authApi, loadApiBase, tokenStore, getApiBase, setUnauthorizedHandler, ApiError } from "@/lib/api";
 
 export type AppMode = "user" | "admin";
 const MODE_KEY = "uti_app_mode";
+const USER_KEY = "uti_user_cache";
 
 type Session = {
   ready: boolean;
@@ -53,9 +54,16 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     try {
       const me = await authApi.me();
       setUser(me);
-    } catch {
-      await tokenStore.setUser(null);
-      setUser(null);
+      SecureStore.setItemAsync(USER_KEY, JSON.stringify(me)).catch(() => {});
+    } catch (e) {
+      // Only a genuine auth rejection ends the session. Network blips, timeouts
+      // and cold-start failures must NOT log the user out — keep the cached
+      // session and retry on the next refresh.
+      if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
+        await tokenStore.setUser(null);
+        SecureStore.deleteItemAsync(USER_KEY).catch(() => {});
+        setUser(null);
+      }
     } finally {
       setUserLoading(false);
     }
@@ -70,9 +78,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     try {
       const me = await adminAuthApi.me();
       setAdmin(me);
-    } catch {
-      await tokenStore.setAdmin(null);
-      setAdmin(null);
+    } catch (e) {
+      if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
+        await tokenStore.setAdmin(null);
+        setAdmin(null);
+      }
     } finally {
       setAdminLoading(false);
     }
@@ -84,6 +94,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       // Fire-and-forget warm-up so the (sleepy) backend starts waking immediately.
       fetch(`${getApiBase()}/api/v1/homepage`).catch(() => {});
       await tokenStore.hydrate();
+      // Optimistically restore the last-known profile so a reload lands signed
+      // in instantly, even while the (sleepy) backend is still waking up.
+      if (tokenStore.getUser()) {
+        try { const cached = await SecureStore.getItemAsync(USER_KEY); if (cached) setUser(JSON.parse(cached)); } catch {}
+      }
       try {
         const m = await SecureStore.getItemAsync(MODE_KEY);
         if (m === "user" || m === "admin") setModeState(m);
@@ -117,6 +132,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const logoutUser = useCallback(async () => {
     await tokenStore.setUser(null);
+    SecureStore.deleteItemAsync(USER_KEY).catch(() => {});
     setUser(null);
   }, []);
 

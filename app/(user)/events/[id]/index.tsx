@@ -9,13 +9,16 @@ import {
 } from "lucide-react-native";
 import { useTheme } from "@/theme/ThemeProvider";
 import { getEventById, getRelatedEvents } from "@/lib/events";
+import { publicApi } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
 import { Txt, Badge, Button, Card, SectionLabel, Skeleton } from "@/components/ui";
 import { ShareSheet } from "@/components/ShareSheet";
-import { AppImage } from "@/components/AppImage";
+import { AppImage, PosterFill } from "@/components/AppImage";
+import { useParallaxHero } from "@/components/ParallaxHero";
 import { FadeInUp } from "@/components/FadeInUp";
 import { Countdown } from "@/components/domain";
 import { DottedGrid } from "@/components/patterns";
+import { InfoCard, InfoRow, DateChip } from "@/components/InfoRows";
 import { formatEventDate, formatINR, splitDate, isPastEvent, isDeadlinePassed, isBookable } from "@/lib/format";
 
 const HERO = 380;
@@ -28,11 +31,10 @@ export default function EventDetail() {
   const { data: ev, loading } = useAsync(() => getEventById(String(id)), [id]);
   const { data: related } = useAsync(() => getRelatedEvents(String(id)), [id]);
 
-  const scrollY = useRef(new Animated.Value(0)).current;
+  /* Shared with competition detail so the two heroes stay identical. */
+  const { onScroll, imgTranslate, imgScale, headerOpacity } = useParallaxHero(HERO);
   const [shareOpen, setShareOpen] = useState(false);
-  const imgTranslate = scrollY.interpolate({ inputRange: [-200, 0, HERO], outputRange: [-100, 0, 110], extrapolateLeft: "extend", extrapolateRight: "clamp" });
-  const imgScale = scrollY.interpolate({ inputRange: [-200, 0], outputRange: [1.5, 1], extrapolateRight: "clamp" });
-  const headerOpacity = scrollY.interpolate({ inputRange: [HERO - 160, HERO - 90], outputRange: [0, 1], extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const [shareData, setShareData] = useState<any>(null);
 
   if (loading) {
     return (
@@ -60,19 +62,20 @@ export default function EventDetail() {
   const lowSeats = seatsLeft !== null && seatsLeft <= 20 && seatsLeft > 0;
   const d = splitDate(ev.date);
 
-  const facts = [
-    { Icon: CalendarDays, label: "Date", value: formatEventDate(ev.date) },
-    { Icon: Clock, label: "Time", value: ev.time || "TBA" },
-    { Icon: MapPin, label: "Venue", value: ev.venue || "TBA" },
-    { Icon: Users, label: "Seats", value: seatsLeft !== null ? `${seatsLeft} left` : "Open" },
-  ];
+  const openMaps = () => {
+    const q = encodeURIComponent(`${ev.venue}`);
+    Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${q}`).catch(() => {});
+  };
   const perks = [
     { Icon: QrCode, title: "Instant digital ticket", body: "A scannable QR pass lands in your tickets the moment payment clears." },
     { Icon: ShieldCheck, title: "Secure checkout", body: "Payments are verified server-side with signature validation." },
     { Icon: Zap, title: "Gate-ready entry", body: "Tap in at the gate — one scan per pass." },
   ];
 
-  const share = () => setShareOpen(true);
+  const share = () => {
+    setShareOpen(true);
+    if (ev?._id) publicApi.shareEvent(String(ev._id)).then(setShareData).catch(() => {});
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: "#08090C" }}>
@@ -81,13 +84,13 @@ export default function EventDetail() {
       <Animated.ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 150 }}
-        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}
+        onScroll={onScroll}
         scrollEventThrottle={16}
       >
         {/* Parallax hero */}
         <View style={{ height: HERO, overflow: "hidden" }}>
           <Animated.View style={{ width: "100%", height: "100%", transform: [{ translateY: imgTranslate }, { scale: imgScale }] }}>
-            <AppImage uri={ev.image_url} seed={3} style={{ width: "100%", height: "100%" }} />
+            <PosterFill uri={ev.image_url} seed={3} />
           </Animated.View>
           <LinearGradient colors={["rgba(4,5,12,0.55)", "transparent", "rgba(4,5,12,0.5)", "rgba(4,5,12,0.9)"] as any} locations={[0, 0.32, 0.7, 1]} style={{ position: "absolute", width: "100%", height: "100%" }} />
           <View style={{ position: "absolute", bottom: 46, left: 20, right: 20, flexDirection: "row", alignItems: "flex-end", gap: 14 }}>
@@ -138,25 +141,17 @@ export default function EventDetail() {
             </View>
           ) : null}
 
-          {/* Quick facts — compact, one-line auto-fit values */}
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-            {facts.map((f, i) => (
-              <FadeInUp key={f.label} delay={i * 55} style={{ width: "47%", flexGrow: 1 }}>
-                <Card padding={13}>
-                  <View style={{ flexDirection: "row", gap: 11, alignItems: "center" }}>
-                    <View style={{ width: 40, height: 40, borderRadius: 11, overflow: "hidden", alignItems: "center", justifyContent: "center", shadowColor: c.accent, shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 4 }}>
-                      <LinearGradient colors={c.gradBrand as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ position: "absolute", width: "100%", height: "100%" }} />
-                      <f.Icon size={18} color="#fff" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Txt size={9.5} font="monoMed" tone="subtle" tracking={1.5} uppercase>{f.label}</Txt>
-                      <Text adjustsFontSizeToFit numberOfLines={1} minimumFontScale={0.8} style={{ color: c.fg, fontFamily: fonts.sansBold, fontSize: 14, marginTop: 2 }}>{f.value}</Text>
-                    </View>
-                  </View>
-                </Card>
-              </FadeInUp>
-            ))}
-          </View>
+          {/* Clean info rows */}
+          <FadeInUp>
+            <InfoCard>
+              <InfoRow icon={<Ticket size={19} color={c.accent} />} label="Entry" value={ev.price ? formatINR(ev.price) : "FREE"} valueColor={ev.price ? undefined : c.success} />
+              <InfoRow dateChip={<DateChip day={d.day} month={d.month} />} value={formatEventDate(ev.date)} sub={ev.time || "Time to be announced"} />
+              <InfoRow icon={<MapPin size={19} color={c.accent} />} value={ev.venue || "Venue to be announced"} sub={ev.venue ? "Tap for directions" : undefined} onPress={ev.venue ? openMaps : undefined} />
+              {seatsLeft !== null ? (
+                <InfoRow icon={<Users size={19} color={c.accent} />} label="Availability" value={seatsLeft > 0 ? `${seatsLeft} seats left` : "Sold out"} valueColor={lowSeats ? c.warning : seatsLeft === 0 ? c.danger : undefined} />
+              ) : null}
+            </InfoCard>
+          </FadeInUp>
 
           {/* About */}
           <FadeInUp>
@@ -183,28 +178,6 @@ export default function EventDetail() {
               </FadeInUp>
             ))}
           </View>
-
-          {/* Venue card with tap to navigate */}
-          {ev.venue ? (
-            <Pressable
-              onPress={() => {
-                const q = encodeURIComponent(`${ev.venue}`);
-                Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${q}`).catch(() => {});
-              }}
-              style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.985 : 1 }] })}
-            >
-              <Card style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
-                <View style={{ width: 46, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: c.surface2 }}>
-                  <MapPin size={20} color={c.accent} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Txt size={10.5} font="monoMed" tone="subtle" tracking={2} uppercase>Venue · Tap for directions</Txt>
-                  <Txt size={15} font="sansBold" numberOfLines={2} style={{ marginTop: 2 }}>{ev.venue}</Txt>
-                </View>
-                <ChevronRight size={18} color={c.fgSubtle} />
-              </Card>
-            </Pressable>
-          ) : null}
 
           {/* Related */}
           {related?.length ? (
@@ -247,8 +220,8 @@ export default function EventDetail() {
         onClose={() => setShareOpen(false)}
         title="Share this event"
         subtitle={ev.title}
-        message={`Check out ${ev.title} on Upgrade Talents — ${formatEventDate(ev.date)}${ev.venue ? ` at ${ev.venue}` : ""}.`}
-        url={`https://upgradetalentsindia.in/events/${ev._id}`}
+        message={shareData?.share_text || `Check out ${ev.title} on Upgrade Talents — ${formatEventDate(ev.date)}${ev.venue ? ` at ${ev.venue}` : ""}.`}
+        url={shareData?.share_url || shareData?.page_url || shareData?.ticket_booking_url || `https://upgradetalentsindia.in/events/${ev._id}`}
       />
 
       {/* Sticky booking bar — District style */}

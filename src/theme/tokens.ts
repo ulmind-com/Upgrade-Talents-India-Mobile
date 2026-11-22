@@ -67,17 +67,18 @@ export type Palette = {
 };
 
 export const DARK: Palette = {
-  bg: "#08090c",
-  bgElevated: "#0e1016",
-  surface: "#14161e",
-  surface2: "#1b1d28",
-  surfaceGlass: "rgba(20,22,30,0.88)",
-  border: "rgba(255,255,255,0.08)",
-  borderStrong: "rgba(255,255,255,0.16)",
+  /* True-black AMOLED canvas (District/Zomato dark) with neutral, non-tinted greys. */
+  bg: "#000000",
+  bgElevated: "#0b0b0e",
+  surface: "#111114",
+  surface2: "#1a1a1f",
+  surfaceGlass: "rgba(12,12,14,0.92)",
+  border: "rgba(255,255,255,0.07)",
+  borderStrong: "rgba(255,255,255,0.14)",
 
   fg: "#ffffff",
-  fgMuted: "#9ea3b8",
-  fgSubtle: "#6b728a",
+  fgMuted: "#9b9ba6",
+  fgSubtle: "#6a6a74",
 
   primary: "#ff385c",
   primaryHover: "#ff5271",
@@ -95,26 +96,27 @@ export const DARK: Palette = {
   danger: "#ef4444",
 
   ring: "#ff385c",
-  scrim: "rgba(4,5,8,0.85)",
+  scrim: "rgba(0,0,0,0.88)",
 
-  gradBrand: ["#8b5cf6", "#ff385c", "#e0264b", "#c41a3d"],
+  /* Clean single-hue red gradient — no more violet→red rainbow. */
+  gradBrand: ["#ff5271", "#ff385c", "#e0264b", "#c41a3d"],
 
-  spot1: "rgba(139,92,246,0.30)",
-  spot2: "rgba(255,56,92,0.18)",
-  spot3: "rgba(201,242,74,0.14)",
+  spot1: "rgba(255,56,92,0.20)",
+  spot2: "rgba(255,56,92,0.14)",
+  spot3: "rgba(255,82,113,0.10)",
 
-  stageGrad: ["#2d184d", "#22113d", "#180c2e", "#100820", "#08090c"],
-  stageBloom: "rgba(139,92,246,0.38)",
+  stageGrad: ["#2a0f1c", "#200a16", "#160610", "#0c0309", "#000000"],
+  stageBloom: "rgba(255,56,92,0.30)",
 
   acid: "#c9f24a",
-  acidInk: "#08090c",
-  streetBg: "#08090c",
-  streetCard: "#14161e",
-  streetLine: "rgba(255,255,255,0.22)",
+  acidInk: "#000000",
+  streetBg: "#000000",
+  streetCard: "#111114",
+  streetLine: "rgba(255,255,255,0.18)",
   streetRed: "#ff385c",
 
-  theaterBg: "#120a22",
-  theaterDeep: "#080410",
+  theaterBg: "#120610",
+  theaterDeep: "#000000",
   theaterPink: "#ff385c",
 
   barStyle: "light",
@@ -130,9 +132,14 @@ export const PALETTES: Record<ThemeName, Palette> = { dark: DARK, blue: DARK };
 export const radius = { xs: 6, sm: 10, md: 16, lg: 24, xl: 32, "2xl": 44, full: 9999 };
 export const space = { 1: 4, 2: 8, 3: 16, 4: 24, 5: 40, 6: 64, 7: 96, 8: 140 };
 
-/* Loaded font family keys (see theme/fonts.ts). */
+/**
+ * Clean District type system — one restrained family set everywhere.
+ * Poppins (geometric) for display/headings, Inter for body & UI. All the old
+ * loud keys (street/serif/cond/mono) are remapped onto this clean pair so the
+ * whole app reads calm and premium without touching a single screen.
+ */
 export const fonts = {
-  display: "ArchivoBlack",     // hero / headings
+  display: "Poppins_800ExtraBold", // hero / big headings
   hero: "Poppins_700Bold",
   heroSemi: "Poppins_600SemiBold",
   sans: "Inter_400Regular",
@@ -140,13 +147,13 @@ export const fonts = {
   sansSemi: "Inter_600SemiBold",
   sansBold: "Inter_700Bold",
   sansExt: "Inter_800ExtraBold",
-  mono: "JetBrainsMono_400Regular",
-  monoMed: "JetBrainsMono_500Medium",
-  cond: "Oswald_600SemiBold",
-  condBold: "Oswald_700Bold",
-  street: "Anton_400Regular",
-  serif: "PlayfairDisplay_600SemiBold",
-  serifItalic: "PlayfairDisplay_400Regular_Italic",
+  mono: "Inter_600SemiBold",        // eyebrows → clean caps, not techy mono
+  monoMed: "Inter_600SemiBold",
+  cond: "Poppins_600SemiBold",      // was Oswald
+  condBold: "Poppins_700Bold",
+  street: "Poppins_800ExtraBold",   // was Anton
+  serif: "Inter_600SemiBold",       // serif removed for a clean look
+  serifItalic: "Inter_500Medium",
 };
 
 /* Gen-Z accent pairs — used for sectional colour so screens aren't all orange. */

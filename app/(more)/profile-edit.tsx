@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { View, Pressable } from "react-native";
-import * as ImagePicker from "expo-image-picker";
-import { Camera, Save, User as UserIcon, Phone, MapPin, CalendarDays, Mail, Lock } from "lucide-react-native";
+import { Save, User as UserIcon, Mail, Lock, Sparkles, Check, X, Pencil } from "lucide-react-native";
 import { SubScreen } from "@/components/SubScreen";
 import { useTheme } from "@/theme/ThemeProvider";
 import { useSession } from "@/context/Session";
@@ -9,7 +8,10 @@ import { profileApi, safe, ApiError } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
 import { useAlert } from "@/components/Popup";
 import { Txt, Button, Card, Field, Input, Skeleton, EmptyState } from "@/components/ui";
+import { DobPicker } from "@/components/DobPicker";
 import { Avatar } from "@/components/Avatar";
+import { ProfilePhotoModal, AssetFile } from "@/components/ProfilePhotoPicker";
+import { playNavFeedback } from "@/lib/sound";
 import { FadeInUp } from "@/components/FadeInUp";
 import { toDateInput } from "@/lib/format";
 
@@ -27,7 +29,8 @@ export default function ProfileEdit() {
   const me = q.data || user || {};
 
   const [form, setForm] = useState({ name: "", phone: "", dob: "", address: "", parentPhone: "" });
-  const [photo, setPhoto] = useState<{ uri: string; name: string; type: string } | null>(null);
+  const [photo, setPhoto] = useState<AssetFile | null>(null);
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -40,15 +43,6 @@ export default function ProfileEdit() {
       parentPhone: digits(me.parent_phone_number || ""),
     });
   }, [q.data, user?.email]);
-
-  const pick = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) return alert("warning", "Permission needed", "Allow photo access to change your picture.");
-    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.8, allowsEditing: true, aspect: [1, 1] });
-    if (res.canceled || !res.assets?.length) return;
-    const a = res.assets[0];
-    setPhoto({ uri: a.uri, name: a.fileName || "profile.jpg", type: a.mimeType || "image/jpeg" });
-  };
 
   const save = async () => {
     if (!form.name.trim()) return alert("warning", "Name needed", "Your name cannot be empty.");
@@ -91,21 +85,116 @@ export default function ProfileEdit() {
           {/* Photo */}
           <FadeInUp>
             <View style={{ alignItems: "center", marginBottom: 22 }}>
-              <Pressable onPress={pick} style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}>
-                <Avatar
-                  name={me.name || me.email}
-                  photo={photo?.uri || me.profile_photo}
-                  size={104}
-                  fontSize={34}
-                  gradient={false}
-                  textColor={c.accent}
-                  border={{ width: 2, color: c.accent + "55" }}
-                />
-                <View style={{ position: "absolute", right: -2, bottom: -2, width: 34, height: 34, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.accent, borderWidth: 3, borderColor: c.bg }}>
-                  <Camera size={15} color={c.onAccent} />
+              {/* Outer glowing ring */}
+              <View
+                style={{
+                  width: 116,
+                  height: 116,
+                  borderRadius: 999,
+                  padding: 3,
+                  backgroundColor: photo ? "#C9F24A" : c.borderStrong,
+                  shadowColor: photo ? "#C9F24A" : "#000",
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.35,
+                  shadowRadius: 10,
+                  elevation: 6,
+                }}
+              >
+                <Pressable
+                  onPress={() => {
+                    playNavFeedback();
+                    setShowPhotoModal(true);
+                  }}
+                  style={({ pressed }) => ({
+                    flex: 1,
+                    borderRadius: 999,
+                    overflow: "hidden",
+                    backgroundColor: c.surface2,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    opacity: pressed ? 0.85 : 1,
+                  })}
+                >
+                  <Avatar
+                    name={form.name || me.name || me.email}
+                    photo={photo?.uri || me.profile_photo}
+                    size={110}
+                    fontSize={36}
+                    textColor="#fff"
+                  />
+                  {/* Edit Pencil Icon Badge */}
+                  <View
+                    style={{
+                      position: "absolute",
+                      right: 2,
+                      bottom: 2,
+                      width: 34,
+                      height: 34,
+                      borderRadius: 999,
+                      backgroundColor: photo ? "#C9F24A" : c.accent,
+                      borderWidth: 2.5,
+                      borderColor: c.bg,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Pencil size={15} color={photo ? "#000" : c.onAccent} />
+                  </View>
+                </Pressable>
+              </View>
+
+              {/* Status pill or tap hint */}
+              {photo ? (
+                <View style={{ alignItems: "center", gap: 6, marginTop: 12 }}>
+                  <Pressable
+                    onPress={() => {
+                      playNavFeedback();
+                      setShowPhotoModal(true);
+                    }}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 6,
+                      backgroundColor: "rgba(201, 242, 74, 0.12)",
+                      paddingHorizontal: 12,
+                      paddingVertical: 5,
+                      borderRadius: 999,
+                      borderWidth: 1,
+                      borderColor: "rgba(201, 242, 74, 0.3)",
+                    }}
+                  >
+                    <Check size={13} color="#C9F24A" />
+                    <Txt size={12.5} font="sansBold" style={{ color: "#C9F24A" }}>
+                      New photo / avatar selected
+                    </Txt>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => {
+                      playNavFeedback();
+                      setPhoto(null);
+                    }}
+                    hitSlop={8}
+                    style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+                  >
+                    <X size={12} color={c.fgSubtle} />
+                    <Txt size={12} tone="muted" style={{ textDecorationLine: "underline" }}>
+                      Revert to original
+                    </Txt>
+                  </Pressable>
                 </View>
-              </Pressable>
-              <Txt size={12.5} tone="subtle" style={{ marginTop: 10 }}>Tap to change your photo</Txt>
+              ) : (
+                <Pressable
+                  onPress={() => {
+                    playNavFeedback();
+                    setShowPhotoModal(true);
+                  }}
+                  style={{ marginTop: 10 }}
+                >
+                  <Txt size={12.5} tone="accent" font="sansBold">
+                    Tap to change photo or avatar
+                  </Txt>
+                </Pressable>
+              )}
             </View>
           </FadeInUp>
 
@@ -128,8 +217,8 @@ export default function ProfileEdit() {
                 <Input value={form.phone} onChangeText={(v) => setForm((s) => ({ ...s, phone: digits(v).slice(0, 10) }))} placeholder="9876543210" keyboardType="number-pad" />
               </Field>
 
-              <Field label="Date of birth" hint="YYYY-MM-DD">
-                <Input value={form.dob} onChangeText={(v) => setForm((s) => ({ ...s, dob: v }))} placeholder="2000-01-31" />
+              <Field label="Date of birth" hint="Select your birth date">
+                <DobPicker value={form.dob} onChange={(v) => setForm((s) => ({ ...s, dob: v }))} />
               </Field>
 
               <Field label="Residential address">
@@ -145,6 +234,14 @@ export default function ProfileEdit() {
           </FadeInUp>
         </>
       )}
+
+      <ProfilePhotoModal
+        visible={showPhotoModal}
+        onClose={() => setShowPhotoModal(false)}
+        photo={photo}
+        onChange={setPhoto}
+        userName={form.name || me.name || me.email}
+      />
     </SubScreen>
   );
 }

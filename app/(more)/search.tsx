@@ -137,7 +137,7 @@ export default function UniversalSearch() {
           flexDirection: "row",
           alignItems: "center",
           gap: 10,
-          backgroundColor: "#14161e",
+          backgroundColor: "#111114",
           borderRadius: 16,
           borderWidth: 1,
           borderColor: "rgba(255, 255, 255, 0.12)",

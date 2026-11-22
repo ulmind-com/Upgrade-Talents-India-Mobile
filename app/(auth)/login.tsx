@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { View, Pressable } from "react-native";
 import { Link, useLocalSearchParams, useRouter } from "expo-router";
-import { ArrowRight, Eye, EyeOff, Ticket, ShieldCheck, Sparkles } from "lucide-react-native";
+import { ArrowRight, Eye, EyeOff, Ticket, ShieldCheck, Sparkles, Fingerprint } from "lucide-react-native";
 import { AuthShell } from "@/components/AuthShell";
 import { Alert, Button, Field, Input, Txt } from "@/components/ui";
 import { useAlert } from "@/components/Popup";
@@ -9,6 +9,7 @@ import { useTheme } from "@/theme/ThemeProvider";
 import { useSession } from "@/context/Session";
 import { ApiError, tokenStore } from "@/lib/api";
 import { useGoogleAuth, googleConfigured } from "@/lib/googleAuth";
+import { passkeyAvailable, signInWithPasskey, PasskeyUnavailable } from "@/lib/passkey";
 
 export default function Login() {
   const { c } = useTheme();
@@ -30,6 +31,23 @@ export default function Login() {
   const alert = useAlert();
   const setFormError = (m: string | null) => { if (m) alert("error", "Sign in failed", m); };
   const [loading, setLoading] = useState(false);
+  const [pkBusy, setPkBusy] = useState(false);
+
+  const passkeySignIn = async () => {
+    setPkBusy(true);
+    try {
+      await signInWithPasskey();
+      await refreshUser();
+      if (next) router.replace(next as any);
+      else if (router.canGoBack()) router.back();
+      else router.replace("/(user)");
+    } catch (err) {
+      if (err instanceof PasskeyUnavailable) alert("info", "Passkeys coming soon", err.message);
+      else alert("error", "Passkey sign-in failed", err instanceof ApiError ? err.message : "Try another method.");
+    } finally {
+      setPkBusy(false);
+    }
+  };
 
   const submit = async () => {
     setFormError(null);
@@ -75,6 +93,10 @@ export default function Login() {
         </Pressable>
 
         <Button label="Sign in" onPress={submit} loading={loading} size="lg" full iconRight={<ArrowRight size={18} color={c.onAccent} />} />
+
+        {passkeyAvailable() ? (
+          <Button label="Sign in with a passkey" variant="outline" full size="lg" loading={pkBusy} onPress={passkeySignIn} icon={<Fingerprint size={18} color={c.fg} />} />
+        ) : null}
 
         {googleConfigured ? (
           <>

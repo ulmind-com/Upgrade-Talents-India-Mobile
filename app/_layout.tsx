@@ -35,14 +35,14 @@ function Boot({ children }: { children: React.ReactNode }) {
   const [settled, setSettled] = useState(false);
   const [gone, setGone] = useState(false);
   useEffect(() => {
-    const t = setTimeout(() => setSettled(true), 2250);
+    const t = setTimeout(() => setSettled(true), 2500);
     return () => clearTimeout(t);
   }, []);
 
   return (
     <View style={{ flex: 1 }}>
       {show ? children : null}
-      {!gone ? <Splash visible={!(show && settled)} onHidden={() => setGone(true)} /> : null}
+      {!gone ? <Splash visible={!(show && settled)} onHidden={() => setGone(true)} fontReady={fontsDone} /> : null}
     </View>
   );
 }

@@ -14,3 +14,15 @@ const fromEnv = process.env.EXPO_PUBLIC_API_BASE_URL;
 const RENDER_API = "https://event-management-backend-nijj.onrender.com";
 
 export const DEFAULT_API_BASE = (fromEnv || fromExtra || RENDER_API).replace(/\/$/, "");
+
+/**
+ * The WebAuthn origin the app presents for passkey sign-in. The backend derives
+ * the rp_id from this (host of the Origin), so it MUST:
+ *   1. be listed in the backend's WEBAUTHN_ORIGINS env allowlist, and
+ *   2. match the iOS associatedDomains entry (webcredentials:<host>) and the
+ *      domain that serves /.well-known/apple-app-site-association + assetlinks.
+ * A passkey is bound to the rp_id it was created under, so this host must be the
+ * same one the user registered their passkey on.
+ */
+export const WEBAUTHN_ORIGIN = (process.env.EXPO_PUBLIC_WEBAUTHN_ORIGIN || "https://app.upgradetalentsindia.in").replace(/\/$/, "");
+export const WEBAUTHN_RP_ID = WEBAUTHN_ORIGIN.replace(/^https?:\/\//, "");

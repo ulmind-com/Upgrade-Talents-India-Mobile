@@ -10,6 +10,7 @@ import Svg, { Path } from "react-native-svg";
 import { Link2, FileDown, MoreHorizontal, Check, X } from "lucide-react-native";
 import { useTheme } from "@/theme/ThemeProvider";
 import { Txt } from "@/components/ui";
+import { playNavFeedback } from "@/lib/sound";
 
 const EASE = Easing.bezier(0.16, 1, 0.3, 1);
 
@@ -129,6 +130,7 @@ export function ShareSheet({
 
   useEffect(() => {
     if (visible) {
+      playNavFeedback();
       setMounted(true);
       setNote(null);
       setCopied(false);
@@ -142,21 +144,21 @@ export function ShareSheet({
   const ctx: ShareCtx = { text: message, url, file, note: setNote };
 
   const pick = async (t: ShareTarget) => {
-    Haptics.selectionAsync().catch(() => {});
+    playNavFeedback();
     try { await t.run(ctx); } catch { setNote("Couldn't open that app."); return; }
     if (t.key !== "instagram") onClose();
   };
 
   const copy = async () => {
     await Clipboard.setStringAsync(url || message);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    playNavFeedback();
     setCopied(true);
     setTimeout(() => setCopied(false), 1600);
   };
 
   const sendFile = async () => {
     if (!file) return;
-    Haptics.selectionAsync().catch(() => {});
+    playNavFeedback();
     try {
       if (!(await Sharing.isAvailableAsync())) throw new Error();
       // expo-sharing decodes the path, so Expo Go's %-escaped sandbox needs
@@ -172,7 +174,7 @@ export function ShareSheet({
   };
 
   const more = async () => {
-    Haptics.selectionAsync().catch(() => {});
+    playNavFeedback();
     try { await RNShare.share({ message: joined(ctx) }); onClose(); } catch {}
   };
 
@@ -183,7 +185,7 @@ export function ShareSheet({
       <View style={{ flex: 1, justifyContent: "flex-end" }}>
         {/* backdrop */}
         <Animated.View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, opacity: a }}>
-          <Pressable onPress={onClose} style={{ flex: 1 }}>
+          <Pressable onPress={() => { playNavFeedback(); onClose(); }} style={{ flex: 1 }}>
             <BlurView intensity={22} tint={name === "dark" ? "dark" : "light"} style={{ flex: 1, backgroundColor: "rgba(6,7,15,0.45)" }} />
           </Pressable>
         </Animated.View>
@@ -205,7 +207,7 @@ export function ShareSheet({
               <Txt size={19} font="sansExt">{title}</Txt>
               {subtitle ? <Txt size={12.5} tone="muted" lh={18} numberOfLines={2} style={{ marginTop: 3 }}>{subtitle}</Txt> : null}
             </View>
-            <Pressable onPress={onClose} style={{ width: 34, height: 34, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.surface2 }}>
+            <Pressable onPress={() => { playNavFeedback(); onClose(); }} style={{ width: 34, height: 34, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.surface2 }}>
               <X size={16} color={c.fgMuted} />
             </Pressable>
           </View>

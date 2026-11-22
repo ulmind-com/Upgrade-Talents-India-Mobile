@@ -5,6 +5,7 @@ import * as ImagePicker from "expo-image-picker";
 import { ArrowRight, UploadCloud, Check, UserRound, Phone, MapPin, Users, ShieldCheck, LogOut } from "lucide-react-native";
 import { AuthShell } from "@/components/AuthShell";
 import { Button, Field, Input, Txt } from "@/components/ui";
+import { DobPicker } from "@/components/DobPicker";
 import { Avatar } from "@/components/Avatar";
 import { useAlert } from "@/components/Popup";
 import { useTheme } from "@/theme/ThemeProvider";
@@ -119,7 +120,7 @@ export default function CompleteProfile() {
         </Field>
 
         <Field label="Date of birth" error={err.dob} required>
-          <Input value={dob} onChangeText={setDob} placeholder="YYYY-MM-DD" keyboardType="numbers-and-punctuation" invalid={!!err.dob} />
+          <DobPicker value={dob} onChange={setDob} invalid={!!err.dob} />
         </Field>
 
         <Field label="Residential address" error={err.address} required>

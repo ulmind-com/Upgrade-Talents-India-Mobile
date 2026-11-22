@@ -1,8 +1,8 @@
 import React, { useState } from "react";
-import { View, Pressable } from "react-native";
+import { View, Pressable, Alert as RNAlert } from "react-native";
 import { useRouter } from "expo-router";
 import {
-  Bell, BellOff, CheckCheck, Undo2, SlidersHorizontal, AlertTriangle, Inbox, ArrowLeft,
+  Bell, BellOff, CheckCheck, Undo2, SlidersHorizontal, AlertTriangle, Inbox, ArrowLeft, Trash2,
 } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { SubScreen } from "@/components/SubScreen";
@@ -51,6 +51,34 @@ export default function Notifications() {
     } catch (e: any) {
       alert("error", "Couldn't update", e?.message || "Please try again.");
     } finally { setBusy(null); }
+  };
+
+  const remove = (n: any) => {
+    const id = idOf(n);
+    if (!id) return;
+    RNAlert.alert(
+      "Delete notification?",
+      "This removes it from your inbox. Your bookings, payments and records aren't touched.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            setBusy(id);
+            try {
+              await extrasApi.deleteNotification(id);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+              q.reload();
+            } catch (e: any) {
+              alert("error", "Couldn't delete", e?.message || "Please try again.");
+            } finally {
+              setBusy(null);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const markAll = async () => {
@@ -170,13 +198,22 @@ export default function Notifications() {
                         </View>
                       </View>
 
-                      <Pressable
-                        onPress={() => toggleRead(n)}
-                        hitSlop={8}
-                        style={{ width: 32, height: 32, borderRadius: 999, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: c.border, opacity: busy === id ? 0.5 : 1 }}
-                      >
-                        {n.is_read ? <Undo2 size={14} color={c.fgMuted} /> : <CheckCheck size={14} color={c.accent} />}
-                      </Pressable>
+                      <View style={{ gap: 6, opacity: busy === id ? 0.5 : 1 }}>
+                        <Pressable
+                          onPress={() => toggleRead(n)}
+                          hitSlop={6}
+                          style={{ width: 32, height: 32, borderRadius: 999, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: c.border }}
+                        >
+                          {n.is_read ? <Undo2 size={14} color={c.fgMuted} /> : <CheckCheck size={14} color={c.accent} />}
+                        </Pressable>
+                        <Pressable
+                          onPress={() => remove(n)}
+                          hitSlop={6}
+                          style={{ width: 32, height: 32, borderRadius: 999, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: c.border }}
+                        >
+                          <Trash2 size={13} color={c.fgSubtle} />
+                        </Pressable>
+                      </View>
                     </View>
                   </Card>
                 </Pressable>

@@ -10,6 +10,7 @@ import * as Haptics from "expo-haptics";
 import { AlertCircle, Inbox, X, ArrowUpRight, Search, ChevronLeft, ChevronRight, Check } from "lucide-react-native";
 import { useTheme } from "@/theme/ThemeProvider";
 import { ADMIN_DARK, ADMIN_LIGHT, adminFonts, type AdminPalette } from "@/theme/adminTokens";
+import { playNavFeedback } from "@/lib/sound";
 
 /* ═══════════ THEME ═══════════ */
 
@@ -102,7 +103,7 @@ export function AButton({
 
   return (
     <Pressable
-      onPress={() => { if (off) return; Haptics.selectionAsync().catch(() => {}); onPress?.(); }}
+      onPress={() => { if (off) return; playNavFeedback(); onPress?.(); }}
       style={({ pressed }) => [
         {
           height: h, paddingHorizontal: px, borderRadius: 12,
@@ -322,7 +323,7 @@ export function ASelect({ value, options, onChange }: { value?: string; options:
         return (
           <Pressable
             key={o.value}
-            onPress={() => { Haptics.selectionAsync().catch(() => {}); onChange(o.value); }}
+            onPress={() => { playNavFeedback(); onChange(o.value); }}
             style={{ height: 40, paddingHorizontal: 14, borderRadius: 12, justifyContent: "center", borderWidth: 1, borderColor: on ? c.brand : c.border, backgroundColor: on ? c.brandSoft : c.surface2 }}
           >
             <T size={13} font={on ? "semi" : "regular"} color={on ? c.brand : c.fgMuted}>{o.label}</T>
@@ -341,7 +342,7 @@ export function AToggle({ label, checked, onChange }: { label: string; checked: 
   }, [checked]);
   return (
     <Pressable
-      onPress={() => { Haptics.selectionAsync().catch(() => {}); onChange(!checked); }}
+      onPress={() => { playNavFeedback(); onChange(!checked); }}
       style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16, borderRadius: 12, borderWidth: 1, borderColor: c.border, backgroundColor: c.surface2, paddingHorizontal: 14, paddingVertical: 12 }}
     >
       <T size={13} font="medium" style={{ flex: 1 }}>{label}</T>
@@ -745,7 +746,7 @@ export function ATabs<K extends string>({ tabs, value, onChange }: { tabs: { key
         return (
           <Pressable
             key={t.key}
-            onPress={() => { Haptics.selectionAsync().catch(() => {}); onChange(t.key); }}
+            onPress={() => { playNavFeedback(); onChange(t.key); }}
             style={{ height: 36, paddingHorizontal: 14, borderRadius: 12, justifyContent: "center", borderWidth: 1, borderColor: on ? c.brand : c.border, backgroundColor: on ? c.brandSoft : c.surface }}
           >
             <T size={12.5} font="semi" color={on ? c.brand : c.fgMuted}>{t.label}</T>
@@ -774,7 +775,7 @@ export function AAction({ label, hint, cta, tone = "brand", disabled, busy, onPr
         {hint ? <T size={11.5} mut lh={16} style={{ marginTop: 2 }}>{hint}</T> : null}
       </View>
       <Pressable
-        onPress={() => { if (off) return; Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); onPress(); }}
+        onPress={() => { if (off) return; playNavFeedback(); onPress(); }}
         style={({ pressed }) => ({
           flexDirection: "row", alignItems: "center", gap: 6, height: 36, paddingHorizontal: 14, borderRadius: 12,
           backgroundColor: soft, opacity: off ? 0.45 : pressed ? 0.75 : 1,
@@ -892,7 +893,7 @@ export function AScope({ items, value, onChange, placeholder = "All" }: {
         return (
           <Pressable
             key={it.id || "all"}
-            onPress={() => { Haptics.selectionAsync().catch(() => {}); onChange(it.id || null); }}
+            onPress={() => { playNavFeedback(); onChange(it.id || null); }}
             style={{ height: 34, paddingHorizontal: 13, borderRadius: 999, justifyContent: "center", borderWidth: 1, borderColor: on ? c.brand : c.border, backgroundColor: on ? c.brandSoft : c.surface }}
           >
             <T size={12} font={on ? "semi" : "regular"} color={on ? c.brand : c.fgMuted} numberOfLines={1}>{it.label}</T>

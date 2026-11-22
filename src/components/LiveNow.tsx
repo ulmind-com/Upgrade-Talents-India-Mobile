@@ -143,41 +143,40 @@ export function LiveNow({ events, onOpen }: { events: LiveEventItem[]; onOpen: (
   if (!rows.length) return null;
   const anyLive = onAir.length > 0;
 
+  /* No band, no scanlines, no watermark: live content is urgent on its own,
+     and the home page now speaks one visual language. The only loud thing
+     left is the pulsing red dot, which is the part that actually means
+     something. */
   return (
-    <WaveBand
-      color={BAND_TOP}
-      bottomColor="#0b0406"
-      wave={WAVE}
-      paddingTop={42}
-      style={{ marginTop: 24 }}
-      backdrop={
-        <>
-          <LinearGradient colors={[BAND_TOP, "#160409", "#0b0406"] as any} locations={[0, 0.5, 1]} style={{ position: "absolute", width: "100%", height: "100%" }} />
-          <Scanlines color="rgba(255,255,255,0.05)" gap={5} />
-          <Glow color={RED} size={260} top={-6} left={-80} />
-          <Glow color={RED} size={220} top={64} right={-90} />
-          <Txt size={84} font="display" style={{ position: "absolute", top: 4, right: -6, color: "rgba(255,60,80,0.07)", letterSpacing: -3 }} numberOfLines={1}>ON AIR</Txt>
-        </>
-      }
-    >
-      <View style={{ paddingHorizontal: 20, flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16 }}>
-        <Animated.View style={{ width: 11, height: 11, borderRadius: 999, backgroundColor: anyLive ? RED : "#ffb02e", opacity: dot.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }), shadowColor: anyLive ? RED : "#ffb02e", shadowOpacity: 1, shadowRadius: 8, shadowOffset: { width: 0, height: 0 } }} />
-        <Txt size={23} font="display" tracking={-0.5} style={{ color: "#fff" }}>{anyLive ? "Live now" : "Going live soon"}</Txt>
+    <View style={{ marginTop: 32 }}>
+      <View style={{ paddingHorizontal: 20, flexDirection: "row", alignItems: "center", gap: 9, marginBottom: 14 }}>
+        <Animated.View
+          style={{
+            width: 9,
+            height: 9,
+            borderRadius: 999,
+            backgroundColor: anyLive ? RED : "#ffb02e",
+            opacity: dot.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }),
+          }}
+        />
+        <Txt size={20} font="sansBold" tracking={-0.3} style={{ color: "#fff" }}>
+          {anyLive ? "Live now" : "Going live soon"}
+        </Txt>
         {anyLive ? (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: RED, borderRadius: 999, paddingHorizontal: 10, height: 25, marginLeft: 2, shadowColor: RED, shadowOpacity: 0.7, shadowRadius: 10, shadowOffset: { width: 0, height: 0 } }}>
-            <Radio size={11} color="#fff" />
-            <Txt size={10.5} font="sansBold" style={{ color: "#fff", letterSpacing: 1 }}>{onAir.length} ON AIR</Txt>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: RED, borderRadius: 999, paddingHorizontal: 9, height: 22 }}>
+            <Radio size={10} color="#fff" />
+            <Txt size={10} font="sansBold" style={{ color: "#fff", letterSpacing: 0.8 }}>{onAir.length} ON AIR</Txt>
           </View>
         ) : (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "rgba(255,176,46,0.2)", borderWidth: 1, borderColor: "rgba(255,176,46,0.5)", borderRadius: 999, paddingHorizontal: 10, height: 25, marginLeft: 2 }}>
-            <CalendarClock size={11} color="#ffb02e" />
-            <Txt size={10.5} font="sansBold" style={{ color: "#ffb02e", letterSpacing: 1 }}>{rows.length} SCHEDULED</Txt>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "rgba(255,176,46,0.14)", borderWidth: 1, borderColor: "rgba(255,176,46,0.4)", borderRadius: 999, paddingHorizontal: 9, height: 22 }}>
+            <CalendarClock size={10} color="#ffb02e" />
+            <Txt size={10} font="sansBold" style={{ color: "#ffb02e", letterSpacing: 0.8 }}>{rows.length} SCHEDULED</Txt>
           </View>
         )}
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 14 }}>
         {rows.map(({ ev, state }) => <LiveCard key={ev._id} ev={ev} red={RED} state={state} onPress={() => onOpen(ev)} />)}
       </ScrollView>
-    </WaveBand>
+    </View>
   );
 }

@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { View, Pressable, ScrollView, Switch } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, Pressable, ScrollView, Switch, Modal } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import {
@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   XCircle,
   LogOut,
+  KeyRound,
   HandHeart,
   History,
   Zap,
@@ -52,6 +53,10 @@ export default function VolunteerGate() {
   const [history, setHistory] = useState<ScanLog[]>([]);
   const [autoCheckIn, setAutoCheckIn] = useState(true);
   const [admittedCount, setAdmittedCount] = useState(0);
+  const [stats, setStats] = useState<any>(null);
+
+  const loadStats = () => { volunteerScannerApi.stats().then(setStats).catch(() => {}); };
+  useEffect(() => { if (authed) loadStats(); }, [authed]);
 
   const alert = useAlert();
   const setError = (m: string | null) => {
@@ -63,10 +68,13 @@ export default function VolunteerGate() {
 
   const executeCheckIn = async (tok: string) => {
     try {
-      const res = await volunteerScannerApi.checkInTicket(tok);
-      setDone(res?.message || "Checked in successfully.");
-      setResult((r) => (r ? { ...r, ticket: { ...r.ticket, is_checked_in: true } } : r));
+      const cashAmt = Number(result?.cash_amount ?? 0);
+      const isCash = Boolean(result?.is_cash || result?.cash_payment || (result?.cash_status && String(result.cash_status).toUpperCase() !== "COLLECTED" && cashAmt > 0));
+      const res = await volunteerScannerApi.checkInTicket(tok, isCash ? { collect_cash: true, cash_collected: true, cash_amount: cashAmt || undefined } : {});
+      setDone(res?.message || (isCash && cashAmt ? `Checked in — ₹${cashAmt} cash collected.` : "Checked in successfully."));
+      setResult((r) => (r ? { ...r, ticket: { ...r.ticket, is_checked_in: true }, cash_status: isCash ? "COLLECTED" : r.cash_status } : r));
       setAdmittedCount((cnt) => cnt + 1);
+      loadStats();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Check-in failed.");
@@ -125,6 +133,28 @@ export default function VolunteerGate() {
     setAuthed(false);
   };
 
+  const [pwOpen, setPwOpen] = useState(false);
+  const [curPw, setCurPw] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [confPw, setConfPw] = useState("");
+  const [pwBusy, setPwBusy] = useState(false);
+  const changePw = async () => {
+    if (!curPw || !newPw) return alert("warning", "Fill all fields", "Enter your current and new password.");
+    if (newPw.length < 8) return alert("warning", "Too short", "New password must be at least 8 characters.");
+    if (newPw !== confPw) return alert("warning", "Doesn't match", "New password and confirmation don't match.");
+    setPwBusy(true);
+    try {
+      await volunteerAuthApi.changePassword(curPw, newPw);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      alert("success", "Password updated", "Use your new password next time you sign in.");
+      setPwOpen(false); setCurPw(""); setNewPw(""); setConfPw("");
+    } catch (e: any) {
+      alert("error", "Couldn't change password", e instanceof ApiError ? e.message : "Check your current password and try again.");
+    } finally {
+      setPwBusy(false);
+    }
+  };
+
   if (!authed) {
     return (
       <SubScreen eyebrow="Gate" title="Volunteer">
@@ -147,21 +177,20 @@ export default function VolunteerGate() {
       eyebrow="Gate scanner"
       title="Volunteer"
       right={
-        <Pressable
-          onPress={logout}
-          style={{
-            width: 42,
-            height: 42,
-            borderRadius: 999,
-            alignItems: "center",
-            justifyContent: "center",
-            borderWidth: 1,
-            borderColor: c.border,
-            backgroundColor: c.surface,
-          }}
-        >
-          <LogOut size={18} color={c.fgMuted} />
-        </Pressable>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <Pressable
+            onPress={() => setPwOpen(true)}
+            style={{ width: 42, height: 42, borderRadius: 999, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: c.border, backgroundColor: c.surface }}
+          >
+            <KeyRound size={18} color={c.fgMuted} />
+          </Pressable>
+          <Pressable
+            onPress={logout}
+            style={{ width: 42, height: 42, borderRadius: 999, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: c.border, backgroundColor: c.surface }}
+          >
+            <LogOut size={18} color={c.fgMuted} />
+          </Pressable>
+        </View>
       }
     >
       {/* Mint Hero Header */}
@@ -215,12 +244,22 @@ export default function VolunteerGate() {
           >
             <View>
               <Txt size={11} font="monoMed" uppercase tracking={1.5} style={{ color: "rgba(255,255,255,0.8)" }}>
-                Admitted Today
+                Check-ins
               </Txt>
               <Txt size={20} font="sansBold" style={{ color: "#fff", marginTop: 2 }}>
-                {admittedCount} guests
+                {Number(stats?.total_checkins ?? admittedCount)}
               </Txt>
             </View>
+            {stats && (stats.total_cash_collected != null || stats.cash_collected_count != null) ? (
+              <View>
+                <Txt size={11} font="monoMed" uppercase tracking={1.5} style={{ color: "rgba(255,255,255,0.8)" }}>
+                  Cash collected
+                </Txt>
+                <Txt size={20} font="sansBold" style={{ color: "#fff", marginTop: 2 }}>
+                  ₹{Number(stats.total_cash_collected ?? 0)}
+                </Txt>
+              </View>
+            ) : null}
           </View>
         </LinearGradient>
       </View>
@@ -317,6 +356,9 @@ export default function VolunteerGate() {
             {t?.holder_email ? <Row label="Email" value={t.holder_email} /> : null}
             {t?.ticket_ref ? <Row label="Reference" value={t.ticket_ref} mono /> : null}
             {result.booking_status ? <Row label="Booking" value={result.booking_status} /> : null}
+            {(result.is_cash || result.cash_payment || Number(result.cash_amount) > 0) ? (
+              <Row label="Cash" value={`₹${Number(result.cash_amount ?? 0)}${result.cash_status ? ` · ${result.cash_status}` : " · collect at gate"}`} />
+            ) : null}
             {t?.check_in_time ? (
               <Row label="Checked in" value={formatDateTime(t.check_in_time)} />
             ) : null}
@@ -362,7 +404,7 @@ export default function VolunteerGate() {
                   justifyContent: "space-between",
                   padding: 12,
                   borderRadius: 14,
-                  backgroundColor: "#14161e",
+                  backgroundColor: "#111114",
                   borderWidth: 1,
                   borderColor: "rgba(255, 255, 255, 0.06)",
                 }}
@@ -413,6 +455,33 @@ export default function VolunteerGate() {
         onClose={() => setScanning(false)}
         onScan={(d) => verify(d)}
       />
+
+      <Modal visible={pwOpen} transparent animationType="fade" onRequestClose={() => setPwOpen(false)}>
+        <Pressable onPress={() => setPwOpen(false)} style={{ flex: 1, backgroundColor: c.scrim, justifyContent: "flex-end" }}>
+          <Pressable onPress={() => {}} style={{ backgroundColor: c.bgElevated, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, paddingBottom: 40, gap: 16, borderWidth: 1, borderColor: c.border }}>
+            <View style={{ alignSelf: "center", width: 42, height: 5, borderRadius: 999, backgroundColor: c.border }} />
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 11 }}>
+              <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: c.accent + "1f", alignItems: "center", justifyContent: "center" }}>
+                <KeyRound size={20} color={c.accent} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Txt size={17} font="sansBold">Change password</Txt>
+                <Txt size={12.5} tone="muted" style={{ marginTop: 1 }}>Verify your current password, then set a new one.</Txt>
+              </View>
+            </View>
+            <Field label="Current password" required>
+              <Input value={curPw} onChangeText={setCurPw} secureTextEntry autoCapitalize="none" placeholder="••••••••" />
+            </Field>
+            <Field label="New password" required hint="At least 8 characters">
+              <Input value={newPw} onChangeText={setNewPw} secureTextEntry autoCapitalize="none" placeholder="••••••••" />
+            </Field>
+            <Field label="Confirm new password" required>
+              <Input value={confPw} onChangeText={setConfPw} secureTextEntry autoCapitalize="none" placeholder="••••••••" />
+            </Field>
+            <Button label="Update password" full size="lg" loading={pwBusy} onPress={changePw} icon={<Check size={16} color={c.onAccent} />} />
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SubScreen>
   );
 }

@@ -6,6 +6,7 @@ import { CheckCircle2, AlertTriangle, Info, XCircle, X } from "lucide-react-nati
 import { useTheme } from "@/theme/ThemeProvider";
 import { Txt } from "@/components/ui";
 import { TONE_GRAD, type MsgTone } from "@/theme/tokens";
+import { playNavFeedback } from "@/lib/sound";
 
 export type PopupTone = MsgTone;
 type State = { tone: PopupTone; title: string; msg?: string; id: number } | null;
@@ -24,7 +25,10 @@ let external: ShowFn | null = null;
  */
 export function PopupProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<State>(null);
-  const show = useCallback<ShowFn>((tone, title, msg) => setState({ tone, title, msg, id: Date.now() }), []);
+  const show = useCallback<ShowFn>((tone, title, msg) => {
+    playNavFeedback();
+    setState({ tone, title, msg, id: Date.now() });
+  }, []);
 
   useEffect(() => {
     external = show;
@@ -84,7 +88,7 @@ function PopupView({ state, onHide }: { state: State; onHide: () => void }) {
         transform: [{ translateY: a.interpolate({ inputRange: [0, 1], outputRange: [-70, 0] }) }, { scale: a.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) }],
       }}
     >
-      <Pressable onPress={onHide}>
+      <Pressable onPress={() => { playNavFeedback(); onHide(); }}>
         <View style={{ borderRadius: 20, overflow: "hidden", backgroundColor: c.surface, borderWidth: 1, borderColor: c.border, shadowColor: g2, shadowOpacity: 0.4, shadowRadius: 18, shadowOffset: { width: 0, height: 10 }, elevation: 14, flexDirection: "row" }}>
           <LinearGradient colors={[g1, g2] as any} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={{ width: 5 }} />
           <View style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 14, flex: 1 }}>

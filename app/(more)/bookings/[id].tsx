@@ -7,7 +7,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import {
   ArrowLeft, CalendarDays, MapPin, Clock, Ticket as TicketIcon, ChevronRight, Share2,
-  CheckCircle2, CreditCard, XCircle, ScanLine, Receipt, ShieldCheck,
+  CheckCircle2, CreditCard, XCircle, ScanLine, Receipt, ShieldCheck, RefreshCw,
 } from "lucide-react-native";
 import { useTheme } from "@/theme/ThemeProvider";
 import { useSession } from "@/context/Session";
@@ -60,7 +60,7 @@ export default function BookingDetail() {
 
   const [share, setShare] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  const [busy, setBusy] = useState<"pay" | "cancel" | null>(null);
+  const [busy, setBusy] = useState<"pay" | "cancel" | "recheck" | null>(null);
 
   const checkout = useCheckout({
     onDone: () => { popup.show("success", "Payment received", "Your tickets are being issued."); q.reload(); tq.reload(); },
@@ -106,6 +106,20 @@ export default function BookingDetail() {
       if (!r.opened) popup.show("error", "Can't open checkout", r.reason);
     } catch (e: any) {
       popup.show("error", "Couldn't start payment", e?.message || "Please try again.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const recheck = async () => {
+    setBusy("recheck");
+    try {
+      await paymentsApi.reconcilePending();
+      q.reload(); tq.reload();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      popup.show("success", "Payment rechecked", "If it was captured, your passes appear in a moment. Pull to refresh if needed.");
+    } catch (e: any) {
+      popup.show("error", "Couldn't recheck", e?.message || "Please try again in a moment.");
     } finally {
       setBusy(null);
     }
@@ -258,12 +272,21 @@ export default function BookingDetail() {
               <Intro t={intro} at={0.48} span={0.42} y={22}>
                 <View style={{ gap: 10, marginTop: 2 }}>
                   {state === "pending" ? (
-                    <Button
-                      label={busy === "pay" ? "Opening checkout…" : `Pay with Razorpay · ${formatINR(total)}`}
-                      onPress={pay}
-                      disabled={!!busy}
-                      icon={<CreditCard size={16} color={c.onAccent} />}
-                    />
+                    <>
+                      <Button
+                        label={busy === "pay" ? "Opening checkout…" : `Pay with Razorpay · ${formatINR(total)}`}
+                        onPress={pay}
+                        disabled={!!busy}
+                        icon={<CreditCard size={16} color={c.onAccent} />}
+                      />
+                      <Button
+                        label={busy === "recheck" ? "Rechecking…" : "Already paid? Recheck payment"}
+                        variant="ghost"
+                        onPress={recheck}
+                        disabled={!!busy}
+                        icon={<RefreshCw size={15} color={c.fgMuted} />}
+                      />
+                    </>
                   ) : null}
 
                   {isCancellable(row) ? (

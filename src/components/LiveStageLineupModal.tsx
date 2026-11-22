@@ -29,6 +29,7 @@ import { Txt, Badge, Skeleton, EmptyState } from "@/components/ui";
 import { AppImage } from "@/components/AppImage";
 import { VerifiedTick } from "@/components/VerifiedBadge";
 import { Pulse } from "@/components/motion";
+import { playNavFeedback } from "@/lib/sound";
 
 const { height: SCREEN_H } = Dimensions.get("window");
 
@@ -141,7 +142,7 @@ export function LiveStageLineupModal({
   }, [lineup, categoryFilter, statusFilter, search]);
 
   const scrollToMySpot = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    playNavFeedback();
     setCategoryFilter("ALL");
     setStatusFilter("ALL");
     setSearch("");
@@ -315,7 +316,7 @@ export function LiveStageLineupModal({
                   <Pressable
                     key={cat}
                     onPress={() => {
-                      Haptics.selectionAsync().catch(() => {});
+                      playNavFeedback();
                       setCategoryFilter(cat);
                     }}
                     style={{

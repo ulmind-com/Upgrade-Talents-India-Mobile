@@ -3,12 +3,14 @@ import { View, Pressable } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 import {
-  Package, Check, Truck, MapPin, XCircle, Copy, ShoppingBag, CreditCard,
+  Package, Check, Truck, MapPin, XCircle, Copy, ShoppingBag, CreditCard, FileText, Download,
 } from "lucide-react-native";
 import { SubScreen } from "@/components/SubScreen";
 import { useTheme } from "@/theme/ThemeProvider";
-import { shopApi, safe, toRows } from "@/lib/api";
+import { shopApi, getApiBase, tokenStore, safe, toRows } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
 import { useAlert } from "@/components/Popup";
 import { Txt, Card, Badge, Skeleton, EmptyState, Button, Field, Input } from "@/components/ui";
@@ -37,6 +39,7 @@ export default function OrderDetail() {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
+  const [invBusy, setInvBusy] = useState(false);
 
   const q = useAsync(() => safe(shopApi.order(id), null as any), [id], { refetchOnFocus: true });
   const t = useAsync(() => safe(shopApi.orderTracking(id), null as any), [id]);
@@ -71,6 +74,31 @@ export default function OrderDetail() {
     await Clipboard.setStringAsync(String(trackingNo));
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     alert("success", "Copied", "Tracking number copied.");
+  };
+
+  // Invoice exists once an order is placed and not scrapped before payment.
+  const hasInvoice = !!q.data && !["PENDING_PAYMENT", "PAYMENT_PENDING"].includes(status);
+  const downloadInvoice = async () => {
+    setInvBusy(true);
+    Haptics.selectionAsync().catch(() => {});
+    try {
+      const token = tokenStore.getUser();
+      const target = `${FileSystem.cacheDirectory || FileSystem.documentDirectory}invoice-${id}.pdf`;
+      const res = await FileSystem.downloadAsync(shopApi.invoiceUrl(id), target, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      if (res.status >= 400) throw new Error(`Couldn't generate the invoice (${res.status}).`);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(res.uri, { mimeType: "application/pdf", dialogTitle: "Tax invoice", UTI: "com.adobe.pdf" });
+      } else {
+        alert("success", "Invoice ready", "Your tax invoice PDF has been saved.");
+      }
+    } catch (e: any) {
+      alert("error", "Couldn't get the invoice", e?.message || "Please try again in a moment.");
+    } finally {
+      setInvBusy(false);
+    }
   };
 
   return (
@@ -118,6 +146,24 @@ export default function OrderDetail() {
               ) : null}
             </Card>
           </FadeInUp>
+
+          {/* tax invoice */}
+          {hasInvoice ? (
+            <FadeInUp delay={40}>
+              <Pressable onPress={downloadInvoice} disabled={invBusy} style={({ pressed }) => ({ marginTop: 14, opacity: invBusy ? 0.6 : 1, transform: [{ scale: pressed ? 0.99 : 1 }] })}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 18, borderWidth: 1, borderColor: c.border, backgroundColor: c.surface, padding: 14 }}>
+                  <View style={{ width: 42, height: 42, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: c.accent + "1f" }}>
+                    <FileText size={19} color={c.accent} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Txt size={14.5} font="sansBold">{invBusy ? "Preparing invoice…" : "Tax invoice"}</Txt>
+                    <Txt size={12} tone="muted" style={{ marginTop: 1 }}>GST receipt · item breakdown · tracking QR</Txt>
+                  </View>
+                  <Download size={18} color={invBusy ? c.fgSubtle : c.fg} />
+                </View>
+              </Pressable>
+            </FadeInUp>
+          ) : null}
 
           {/* the ladder */}
           <FadeInUp delay={60}>

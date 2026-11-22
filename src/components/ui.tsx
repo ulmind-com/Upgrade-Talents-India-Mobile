@@ -18,9 +18,10 @@ import { MaskedView } from "@/components/vendor";
 import Svg, { Circle, Defs, RadialGradient, Stop } from "react-native-svg";
 import * as Haptics from "expo-haptics";
 import { useTheme } from "@/theme/ThemeProvider";
-import { CheckCircle2, AlertTriangle, Info, XCircle } from "lucide-react-native";
+import { CheckCircle2, AlertTriangle, Info, XCircle, Search, X } from "lucide-react-native";
 import type { Palette } from "@/theme/tokens";
 import { TONE_GRAD, type MsgTone } from "@/theme/tokens";
+import { playNavFeedback } from "@/lib/sound";
 
 /* ─────────────── Text ─────────────── */
 type Tone = "fg" | "muted" | "subtle" | "accent" | "primary" | "danger" | "success" | "warning" | "onAccent";
@@ -142,7 +143,7 @@ export function Button({
 
   const press = () => {
     if (isOff) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    playNavFeedback();
     onPress?.();
   };
 
@@ -160,9 +161,8 @@ export function Button({
         style={{
           color: textColor,
           fontFamily: fonts.sansBold,
-          fontSize: fs,
-          letterSpacing: 1.2,
-          textTransform: "uppercase",
+          fontSize: fs + 1,
+          letterSpacing: 0.2,
         }}
       >
         {label}
@@ -227,7 +227,7 @@ export function IconButton({
   return (
     <Pressable
       onPress={() => {
-        Haptics.selectionAsync().catch(() => {});
+        playNavFeedback();
         onPress?.();
       }}
       style={({ pressed }) => [
@@ -280,7 +280,7 @@ export function Card({
   );
   if (onPress)
     return (
-      <Pressable onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}>
+      <Pressable onPress={() => { playNavFeedback(); onPress(); }} style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}>
         {body}
       </Pressable>
     );
@@ -368,7 +368,7 @@ export function Chip({ label, active, onPress }: { label: string; active?: boole
   return (
     <Pressable
       onPress={() => {
-        Haptics.selectionAsync().catch(() => {});
+        playNavFeedback();
         onPress?.();
       }}
       style={{
@@ -443,6 +443,48 @@ export function Input({
       ]}
       {...props}
     />
+  );
+}
+
+/* ─────────────── Search field ─────────────── */
+export function SearchField({
+  value,
+  onChangeText,
+  placeholder = "Search",
+  autoFocus,
+}: {
+  value: string;
+  onChangeText: (t: string) => void;
+  placeholder?: string;
+  autoFocus?: boolean;
+}) {
+  const { c, fonts } = useTheme();
+  return (
+    <View
+      style={{
+        flexDirection: "row", alignItems: "center", gap: 10,
+        backgroundColor: c.surface, borderRadius: 999, borderWidth: 1, borderColor: c.border,
+        paddingHorizontal: 16, height: 48,
+      }}
+    >
+      <Search size={18} color={c.fgSubtle} />
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={c.fgSubtle}
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoFocus={autoFocus}
+        returnKeyType="search"
+        style={{ flex: 1, color: c.fg, fontFamily: fonts.sansMed, fontSize: 15, paddingVertical: 0 }}
+      />
+      {value ? (
+        <Pressable onPress={() => { playNavFeedback(); onChangeText(""); }} hitSlop={8}>
+          <X size={16} color={c.fgSubtle} />
+        </Pressable>
+      ) : null}
+    </View>
   );
 }
 

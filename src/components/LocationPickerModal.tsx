@@ -13,6 +13,7 @@ import * as SecureStore from "expo-secure-store";
 import { MapPin, Search, Check, X, Navigation } from "lucide-react-native";
 import { useTheme } from "@/theme/ThemeProvider";
 import { Txt } from "@/components/ui";
+import { playNavFeedback } from "@/lib/sound";
 
 export type LocationInfo = {
   area: string;
@@ -85,7 +86,7 @@ export function LocationPickerModal({
   );
 
   const pick = (loc: LocationInfo) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    playNavFeedback();
     onSelect(loc);
     onClose();
   };

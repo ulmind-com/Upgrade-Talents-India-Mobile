@@ -7,24 +7,26 @@ import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
 import {
   Trophy, Upload, Check, Heart, Medal, Crown, CalendarDays, ShieldCheck,
-  Gavel, Users as UsersIcon, Sparkles, Lock, CreditCard, Banknote, Share2,
+  Gavel, Users as UsersIcon, Sparkles, Lock, CreditCard, Banknote, Share2, FileText, ChevronRight,
 } from "lucide-react-native";
 import { SubScreen } from "@/components/SubScreen";
+import { ParallaxDetailScreen } from "@/components/ParallaxHero";
 import { useTheme } from "@/theme/ThemeProvider";
 import { useSession } from "@/context/Session";
 import { publicApi, competeApi, safe, toRows, ApiError } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
-import { Txt, Card, Button, Divider, Skeleton, Alert } from "@/components/ui";
+import { Txt, Card, Button, Divider, Skeleton, Alert, Dot } from "@/components/ui";
 import { usePopup } from "@/components/Popup";
 import { useCheckout } from "@/lib/useCheckout";
-import { AppImage } from "@/components/AppImage";
+import { AppImage, PosterFill } from "@/components/AppImage";
 import { LiveStage } from "@/components/LiveStage";
 import { ShareSheet } from "@/components/ShareSheet";
 import { VerifiedTick } from "@/components/VerifiedBadge";
 import { FadeInUp } from "@/components/FadeInUp";
 import { DottedGrid } from "@/components/patterns";
 import { genz } from "@/theme/tokens";
-import { formatEventDate, titleCase, formatINR } from "@/lib/format";
+import { InfoCard, InfoRow, DateChip } from "@/components/InfoRows";
+import { formatEventDate, titleCase, formatINR, splitDate } from "@/lib/format";
 
 type Asset = { uri: string; name: string; type: string };
 const REG_KEY = "uti_comp_registrations";
@@ -42,8 +44,14 @@ export default function CompetitionDetail() {
     return rows.find((r: any) => (r._id || r.id) === id) || null;
   }, [id]);
   const lbQ = useAsync(() => safe(publicApi.leaderboard(String(id)), { leaderboard: [] } as any), [id]);
+  const rsQ = useAsync(() => safe(competeApi.registrationStatus(String(id)), null as any), [id], { refetchOnFocus: true });
 
   const comp = compQ.data;
+  const cats: string[] = Array.isArray((comp as any)?.categories)
+    ? (comp as any).categories
+        .map((cat: any) => (typeof cat === "string" ? cat : cat?.name || cat?.category_name || cat?.title))
+        .filter(Boolean)
+    : (comp?.category ? [String(comp.category)] : []);
   const rows: any[] = (lbQ.data as any)?.leaderboard || toRows(lbQ.data);
   const [g1, g2] = genz(String(id).length + (comp?.title?.length || 0));
 
@@ -51,10 +59,13 @@ export default function CompetitionDetail() {
   const [regInfo, setRegInfo] = useState<any | null>(null);
   const [rules, setRules] = useState(false);
   const [payMode, setPayMode] = useState<"ONLINE" | "CASH">("ONLINE");
+  const [selectedCat, setSelectedCat] = useState<string>("");
+  const activeCat = selectedCat || cats[0] || "";
   const [files, setFiles] = useState<Record<string, Asset>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [shareData, setShareData] = useState<any>(null);
   const popup = usePopup();
   const [votes, setVotes] = useState<Record<string, number>>({});
   const [voted, setVoted] = useState<Set<string>>(new Set());
@@ -116,6 +127,7 @@ export default function CompetitionDetail() {
 
   const fields: { name: string; required?: boolean }[] = comp?.dynamic_submission_fields || [];
   const deadline = comp?.registration_deadline;
+  const feeAmt = Number(comp?.participation_fee ?? comp?.entry_fee ?? comp?.fee ?? 0);
   const open = !deadline || new Date(deadline).getTime() > Date.now();
   const step: "register" | "submit" | "done" = !registered ? "register" : fields.length && !submitted ? "submit" : "done";
 
@@ -149,12 +161,18 @@ export default function CompetitionDetail() {
     if (!rules) { flash("error", "Please accept the competition rules first."); return; }
     setBusy("reg");
     try {
-      const el = await competeApi.eligibility(String(id));
+      const dob = (user as any)?.date_of_birth || undefined;
+      // Category-aware eligibility + registration when the competition has categories.
+      const el = activeCat
+        ? await competeApi.categoryEligibility(String(id), activeCat, dob)
+        : await competeApi.eligibility(String(id));
       if (!el.eligible) { flash("error", el.reason || "You are not eligible for this competition.", "Not eligible"); return; }
       const fee = Number(comp?.participation_fee ?? comp?.entry_fee ?? comp?.fee ?? 0);
       // Cash on Spot only makes sense when there is actually a fee to collect.
       const mode = fee > 0 ? payMode : "ONLINE";
-      const res = await competeApi.register(String(id), true, mode);
+      const res = activeCat
+        ? await competeApi.registerInCategory(String(id), activeCat, { rules_accepted: true, payment_method: mode, date_of_birth: dob })
+        : await competeApi.register(String(id), true, mode);
 
       // Cash on Spot (or a server-confirmed entry) skips the gateway entirely.
       if (mode === "CASH" || res?.payment_method === "CASH" || res?.status === "CONFIRMED" || !res?.payment_info) {
@@ -236,14 +254,34 @@ export default function CompetitionDetail() {
   const stepIdx = step === "register" ? 0 : step === "submit" ? 1 : STEPS.length - 1;
 
   return (
-    <SubScreen
-      eyebrow={comp.category || "Competition"}
+    <ParallaxDetailScreen
+      image={comp.image_url || comp.banner_url}
+      seed={comp._id}
       title={comp.title || comp.name}
       refreshing={lbQ.refreshing}
       onRefresh={() => { lbQ.refresh(); compQ.reload(); }}
+      onBack={() => (router.canGoBack() ? router.back() : router.replace("/(more)/competitions"))}
+      heroOverlay={
+        <>
+          {comp.category ? (
+            <View style={{ alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(0,0,0,0.45)", borderWidth: 1, borderColor: "rgba(255,255,255,0.2)", borderRadius: 999, paddingHorizontal: 11, height: 26, marginBottom: 10 }}>
+              <Trophy size={12} color={g1} />
+              <Txt size={10.5} font="sansBold" tracking={1} uppercase style={{ color: "#fff" }}>
+                {titleCase(comp.category)}
+              </Txt>
+            </View>
+          ) : null}
+          <Txt size={27} font="display" lh={30} tracking={-0.8} numberOfLines={3} style={{ color: "#fff" }}>
+            {comp.title || comp.name}
+          </Txt>
+        </>
+      }
       right={
         <Pressable
-          onPress={() => setShareOpen(true)}
+          onPress={() => {
+            setShareOpen(true);
+            competeApi.share(String(id)).then(setShareData).catch(() => {});
+          }}
           hitSlop={8}
           style={{
             width: 38,
@@ -265,43 +303,37 @@ export default function CompetitionDetail() {
           {checkout.sheet}
           <ShareSheet
             visible={shareOpen}
-            message={`Check out ${comp.title || comp.name || "this competition"} on Upgrade Talents India! Compete, win cash prizes & perform live on stage.`}
-            url={`https://upgradetalentsindia.in/competitions/${id}`}
+            message={shareData?.share_text || `Check out ${comp.title || comp.name || "this competition"} on Upgrade Talents India! Compete, win cash prizes & perform live on stage.`}
+            url={shareData?.share_url || shareData?.page_url || shareData?.registration_url || `https://upgradetalentsindia.in/competitions/${id}`}
             onClose={() => setShareOpen(false)}
           />
         </>
       }
     >
 
-      {/* ── Hero ── */}
+      {/* ── Clean info rows ── */}
       <FadeInUp>
-        <View style={{ borderRadius: 24, overflow: "hidden", marginBottom: 16 }}>
-          <View style={{ height: 160 }}>
-            <AppImage uri={comp.image_url || comp.banner_url} seed={comp._id} style={{ width: "100%", height: "100%" }} />
-            <LinearGradient colors={["rgba(0,0,0,0.2)", "transparent", "rgba(0,0,0,0.85)"] as any} locations={[0, 0.4, 1]} style={{ position: "absolute", width: "100%", height: "100%" }} />
-            <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 3, backgroundColor: g1 }} />
-            <View style={{ position: "absolute", bottom: 14, left: 16, right: 16 }}>
-              <Txt size={22} font="display" tracking={-0.5} lh={25} numberOfLines={2} style={{ color: "#fff" }}>{comp.title || comp.name}</Txt>
-            </View>
-          </View>
-        </View>
+        <InfoCard style={{ marginBottom: 18 }}>
+          {comp.prize ? <InfoRow icon={<Trophy size={19} color={g1} />} label="Prize pool" value={String(comp.prize)} /> : null}
+          <InfoRow
+            dateChip={deadline ? <DateChip day={splitDate(deadline).day} month={splitDate(deadline).month} /> : undefined}
+            icon={!deadline ? <CalendarDays size={19} color={c.accent} /> : undefined}
+            label={deadline ? "Entries close" : undefined}
+            value={deadline ? formatEventDate(deadline) : "Open entry"}
+            sub={deadline ? "Register before this date" : undefined}
+          />
+          <InfoRow
+            icon={<Sparkles size={19} color={feeAmt > 0 ? c.accent : c.success} />}
+            label="Entry fee"
+            value={feeAmt > 0 ? formatINR(feeAmt) : "FREE"}
+            valueColor={feeAmt > 0 ? undefined : c.success}
+          />
+          {comp.min_age || comp.max_age ? (
+            <InfoRow icon={<ShieldCheck size={19} color={c.accent} />} label="Eligibility" value={`Age ${comp.min_age ?? 0}${comp.max_age ? `–${comp.max_age}` : "+"}`} />
+          ) : null}
+          {comp.result_status ? <InfoRow icon={<Medal size={19} color={c.accent} />} label="Result" value={titleCase(comp.result_status)} /> : null}
+        </InfoCard>
       </FadeInUp>
-
-      {/* ── Chips ── */}
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
-        {comp.prize ? (
-          <View style={{ borderRadius: 999, overflow: "hidden" }}>
-            <LinearGradient colors={[g1, g2] as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 7 }}>
-              <Trophy size={13} color="#fff" />
-              <Txt size={12} font="sansExt" style={{ color: "#fff" }}>{comp.prize}</Txt>
-            </LinearGradient>
-          </View>
-        ) : null}
-        <Chip icon={<CalendarDays size={13} color={c.fgSubtle} />} label={deadline ? `Closes ${formatEventDate(deadline)}` : "Open entry"} />
-        {comp.min_age || comp.max_age ? <Chip icon={<ShieldCheck size={13} color={c.fgSubtle} />} label={`Age ${comp.min_age ?? 0}${comp.max_age ? `–${comp.max_age}` : "+"}`} /> : null}
-        {typeof comp.participation_fee === "number" && comp.participation_fee > 0 ? <Chip icon={<Sparkles size={13} color={c.fgSubtle} />} label={`Fee ${formatINR(comp.participation_fee)}`} /> : null}
-        {comp.result_status ? <Chip icon={<Medal size={13} color={c.fgSubtle} />} label={titleCase(comp.result_status)} /> : null}
-      </View>
 
       {/* ── Stepper ── */}
       <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 18 }}>
@@ -318,41 +350,32 @@ export default function CompetitionDetail() {
         ))}
       </View>
 
-      {/* ── About ── */}
-      {comp.description ? (
-        <FadeInUp delay={60}>
-          <Card style={{ gap: 8, marginBottom: 16 }}>
-            <Txt size={11} font="monoMed" tone="subtle" tracking={2} uppercase>About</Txt>
-            <Txt size={14.5} tone="muted" lh={21}>{comp.description}</Txt>
-          </Card>
-        </FadeInUp>
-      ) : null}
+      {/* ── Live registration status ── */}
+      {(() => {
+        const rs: any = rsQ.data;
+        if (!rs) return null;
+        const regOpen = rs.registration_allowed ?? rs.is_open ?? rs.can_register ?? rs.is_registration_open ?? rs.open;
+        const cap = rs.capacity ?? rs.max_participants ?? comp.max_participants;
+        const cnt = rs.registered_count ?? rs.total_registrations ?? rs.registrations_count;
+        const spots = typeof rs.spots_left === "number" ? rs.spots_left
+          : typeof rs.available_slots === "number" ? rs.available_slots
+          : (typeof cap === "number" && typeof cnt === "number") ? Math.max(0, cap - cnt) : null;
+        const closeAt = rs.registration_close_date || rs.closes_at || rs.registration_deadline || deadline;
+        const closed = regOpen === false;
+        const tone = closed ? c.danger : spots !== null && spots <= 5 ? c.warning : c.success;
+        return (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 16, borderWidth: 1, borderColor: tone + "55", backgroundColor: tone + "12", padding: 13, marginBottom: 16 }}>
+            <Dot color={tone} pulse={!closed} />
+            <Txt size={13} font="sansBold" style={{ flex: 1, color: tone }}>
+              {closed ? "Registration closed" : "Registration open"}
+              {!closed && typeof spots === "number" ? <Txt size={13} font="sansSemi" tone="muted">{`  ·  ${spots} spot${spots === 1 ? "" : "s"} left`}</Txt> : null}
+            </Txt>
+            {!closed && closeAt ? <Txt size={11.5} tone="subtle">Closes {formatEventDate(closeAt)}</Txt> : null}
+          </View>
+        );
+      })()}
 
-      {/* ── Judging criteria ── */}
-      {comp.judging_criteria?.length ? (
-        <FadeInUp delay={80}>
-          <Card style={{ gap: 12, marginBottom: 16 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Gavel size={16} color={g1} />
-              <Txt size={15} font="sansBold" style={{ flex: 1 }}>How you're scored</Txt>
-              {comp.audience_voting_enabled ? <Txt size={11} font="sansBold" style={{ color: g1 }}>+ AUDIENCE</Txt> : null}
-            </View>
-            {comp.judging_criteria.map((cr: any) => (
-              <View key={cr.name} style={{ gap: 5 }}>
-                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                  <Txt size={13.5} font="sansSemi">{cr.name}</Txt>
-                  <Txt size={12.5} font="sansBold" style={{ color: g1 }}>{cr.max_score} pts</Txt>
-                </View>
-                <View style={{ height: 5, borderRadius: 999, backgroundColor: c.surface2, overflow: "hidden" }}>
-                  <View style={{ width: `${Math.min(100, cr.max_score)}%`, height: "100%", backgroundColor: g1, borderRadius: 999 }} />
-                </View>
-              </View>
-            ))}
-          </Card>
-        </FadeInUp>
-      ) : null}
-
-      {/* ── Entry flow ── */}
+      {/* ── Entry flow — brought up so register + payment are the first thing you reach ── */}
       <FadeInUp delay={100}>
         <Card style={{ gap: 14, marginBottom: 20 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -408,6 +431,22 @@ export default function CompetitionDetail() {
             </View>
           ) : step === "register" ? (
             <>
+              {cats.length > 1 ? (
+                <View style={{ gap: 9 }}>
+                  <Txt size={11} font="monoMed" tone="subtle" tracking={2} uppercase>Choose your category</Txt>
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                    {cats.map((cat) => {
+                      const on = activeCat === cat;
+                      return (
+                        <Pressable key={cat} onPress={() => setSelectedCat(cat)} style={{ paddingHorizontal: 15, height: 40, justifyContent: "center", borderRadius: 999, borderWidth: on ? 0 : 1, borderColor: c.border, backgroundColor: on ? g1 : c.surface2 }}>
+                          <Txt size={13} font="sansBold" style={{ color: on ? "#fff" : c.fgMuted }}>{titleCase(cat)}</Txt>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              ) : null}
+
               <Pressable onPress={() => setRules((r) => !r)} style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
                 <View style={{ width: 22, height: 22, borderRadius: 7, borderWidth: 2, borderColor: rules ? g1 : c.borderStrong, backgroundColor: rules ? g1 : "transparent", alignItems: "center", justifyContent: "center", marginTop: 1 }}>
                   {rules ? <Check size={13} color="#fff" /> : null}
@@ -467,11 +506,58 @@ export default function CompetitionDetail() {
                 <Check size={26} color={c.success} />
               </View>
               <Txt size={16} font="sansExt" align="center">You're all set</Txt>
-              <Txt size={13} tone="muted" align="center">Track your rank on the leaderboard below.</Txt>
+              <Txt size={13} tone="muted" align="center">Open the leaderboard to track your rank.</Txt>
             </View>
           )}
         </Card>
       </FadeInUp>
+
+      {/* ── About / details ── */}
+      {comp.description ? (
+        <FadeInUp delay={120}>
+          <Card style={{ gap: 12, marginBottom: 16 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <View style={{ width: 32, height: 32, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: g1 + "22" }}>
+                <FileText size={16} color={g1} />
+              </View>
+              <Txt size={16} font="sansBold" style={{ flex: 1 }}>About this competition</Txt>
+            </View>
+            <View style={{ height: 1, backgroundColor: c.border }} />
+            <Txt size={15} lh={23} style={{ color: c.fg, opacity: 0.92 }}>{comp.description}</Txt>
+            {comp.rules ? (
+              <>
+                <View style={{ height: 1, backgroundColor: c.border, marginTop: 2 }} />
+                <Txt size={11} font="monoMed" tone="subtle" tracking={2} uppercase>Rules</Txt>
+                <Txt size={13.5} tone="muted" lh={20}>{comp.rules}</Txt>
+              </>
+            ) : null}
+          </Card>
+        </FadeInUp>
+      ) : null}
+
+      {/* ── Judging criteria ── */}
+      {comp.judging_criteria?.length ? (
+        <FadeInUp delay={140}>
+          <Card style={{ gap: 12, marginBottom: 16 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Gavel size={16} color={g1} />
+              <Txt size={15} font="sansBold" style={{ flex: 1 }}>How you're scored</Txt>
+              {comp.audience_voting_enabled ? <Txt size={11} font="sansBold" style={{ color: g1 }}>+ AUDIENCE</Txt> : null}
+            </View>
+            {comp.judging_criteria.map((cr: any) => (
+              <View key={cr.name} style={{ gap: 5 }}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                  <Txt size={13.5} font="sansSemi">{cr.name}</Txt>
+                  <Txt size={12.5} font="sansBold" style={{ color: g1 }}>{cr.max_score} pts</Txt>
+                </View>
+                <View style={{ height: 5, borderRadius: 999, backgroundColor: c.surface2, overflow: "hidden" }}>
+                  <View style={{ width: `${Math.min(100, cr.max_score)}%`, height: "100%", backgroundColor: g1, borderRadius: 999 }} />
+                </View>
+              </View>
+            ))}
+          </Card>
+        </FadeInUp>
+      ) : null}
 
       {/* ── Live on-stage, while the competition is running ── */}
       <LiveStage compId={String(id)} live={comp.event_status === "live" || String(comp.result_status || "").toUpperCase() === "LIVE"} />
@@ -495,59 +581,74 @@ export default function CompetitionDetail() {
         </Pressable>
       ) : null}
 
-      {/* ── Leaderboard ── */}
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
-        <Medal size={16} color={g1} />
-        <Txt size={18} font="display" tracking={-0.5} style={{ flex: 1 }}>Leaderboard</Txt>
-        {rows.length ? <Txt size={11.5} font="monoMed" tone="subtle" tracking={1}>{rows.length} IN</Txt> : null}
-      </View>
+      {/* ── Leaderboard ──
+         The full table lives on its own screen, which already does the
+         podium, search, "your standing" and voting far better than a
+         20-row stub squeezed under the registration flow. This is the
+         door to it: enough signal (who is in, how many) to be worth a
+         tap, and nothing that duplicates what is on the other side. */}
+      <Pressable
+        onPress={() => {
+          try { Haptics.selectionAsync(); } catch {}
+          router.push(`/(more)/leaderboard?competition=${id}`);
+        }}
+        style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.98 : 1 }] })}
+      >
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 14,
+            borderRadius: 22,
+            borderWidth: 1,
+            borderColor: c.border,
+            backgroundColor: c.surface,
+            padding: 16,
+          }}
+        >
+          <View style={{ width: 46, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: g1 + "22" }}>
+            <Medal size={22} color={g1} />
+          </View>
 
-      {lbQ.loading ? (
-        <View style={{ gap: 12 }}>{[0, 1, 2].map((i) => <Skeleton key={i} h={66} radius={18} />)}</View>
-      ) : rows.length ? (
-        <View style={{ gap: 12 }}>
-          {rows.slice(0, 20).map((r: any, i: number) => {
-            const pid = r.participant_id || r.email || String(i);
-            const base = r.raw_audience_votes ?? r.audience_votes ?? 0;
-            const count = base + (votes[pid] || 0);
-            const top3 = i < 3;
-            return (
-              <FadeInUp key={pid} delay={Math.min(i, 8) * 45}>
-                <View style={{ borderRadius: 20, overflow: "hidden", borderWidth: top3 ? 2 : 1, borderColor: top3 ? PODIUM[i] : c.border, backgroundColor: c.surface }}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 12 }}>
-                    <View style={{ width: 34, height: 34, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: top3 ? PODIUM[i] : c.surface2 }}>
-                      {i === 0 ? <Crown size={17} color="#7a5600" /> : <Txt size={13} font="display" tone={top3 ? "fg" : "subtle"} style={top3 ? { color: "#55606e" } : undefined}>{r.rank || i + 1}</Txt>}
-                    </View>
-                    <View style={{ width: 40, height: 40, borderRadius: 999, overflow: "hidden", backgroundColor: c.surface2 }}>
-                      <AppImage uri={r.profile_photo} seed={pid} style={{ width: "100%", height: "100%" }} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                        <Txt size={14.5} font="sansBold" numberOfLines={1} style={{ flexShrink: 1 }}>{r.name || "Participant"}</Txt>
-                        <VerifiedTick row={r} size={14} />
-                      </View>
-                      <Txt size={11.5} tone="subtle" numberOfLines={1}>
-                        {typeof r.final_score === "number" ? `Score ${r.final_score}` : `${count} votes`}
-                        {typeof r.raw_judge_score === "number" ? ` · Judge ${r.raw_judge_score}` : ""}
-                      </Txt>
-                    </View>
-                    {comp.audience_voting_enabled !== false ? (
-                      <VoteButton active={voted.has(pid)} count={count} tint={g1} onPress={() => vote(pid)} />
-                    ) : null}
-                  </View>
+          <View style={{ flex: 1 }}>
+            <Txt size={16} font="sansBold">Leaderboard</Txt>
+            <Txt size={12.5} tone="muted" numberOfLines={1} style={{ marginTop: 2 }}>
+              {lbQ.loading
+                ? "Loading rankings…"
+                : rows.length
+                  ? `${rows.length} competing · live rankings${comp.audience_voting_enabled !== false ? " & voting" : ""}`
+                  : "Rankings appear once judging starts"}
+            </Txt>
+          </View>
+
+          {/* the faces currently on top, as a reason to look */}
+          {rows.length ? (
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              {rows.slice(0, 3).map((r: any, i: number) => (
+                <View
+                  key={r.participant_id || r.email || i}
+                  style={{
+                    width: 26,
+                    height: 26,
+                    borderRadius: 999,
+                    overflow: "hidden",
+                    borderWidth: 2,
+                    borderColor: c.surface,
+                    backgroundColor: c.surface2,
+                    marginLeft: i === 0 ? 0 : -9,
+                  }}
+                >
+                  <AppImage uri={r.profile_photo} seed={r.participant_id || i} style={{ width: "100%", height: "100%" }} />
                 </View>
-              </FadeInUp>
-            );
-          })}
+              ))}
+            </View>
+          ) : null}
+
+          <ChevronRight size={20} color={c.fgSubtle} />
         </View>
-      ) : (
-        <Card style={{ alignItems: "center", gap: 8, paddingVertical: 28 }}>
-          <UsersIcon size={24} color={c.fgMuted} />
-          <Txt size={14.5} font="sansBold">No entries yet</Txt>
-          <Txt size={13} tone="muted" align="center">Be the first to register and compete.</Txt>
-        </Card>
-      )}
-    </SubScreen>
+      </Pressable>
+
+    </ParallaxDetailScreen>
   );
 }
 

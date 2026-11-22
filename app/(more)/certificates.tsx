@@ -1,37 +1,76 @@
-import React from "react";
+import React, { useState } from "react";
 import { View, Pressable, Share, Linking } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 import { Award, Download, ShieldCheck, Share2, Sparkles, ChevronRight, ExternalLink } from "lucide-react-native";
 import { SubScreen } from "@/components/SubScreen";
 import { useTheme } from "@/theme/ThemeProvider";
 import { useSession } from "@/context/Session";
-import { extrasApi, safe, toRows } from "@/lib/api";
+import { extrasApi, getApiBase, tokenStore, safe, toRows } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
+import { useAlert } from "@/components/Popup";
 import { Txt, Card, Badge, Skeleton, EmptyState, Button } from "@/components/ui";
 import { SignInPrompt } from "@/components/SignInPrompt";
 import { formatEventDate, titleCase } from "@/lib/format";
 
+const certIdOf = (cert: any) => cert.certificate_id || cert._id || cert.id || cert.certificate_number;
+
 export default function Certificates() {
   const { c } = useTheme();
   const router = useRouter();
+  const alert = useAlert();
   const { user } = useSession();
   const { data, loading, refreshing, refresh } = useAsync(() => (user ? safe(extrasApi.myCertificates(), null) : Promise.resolve(null)), [user?.email]);
   const rows = toRows(data);
+  const [downloading, setDownloading] = useState<string | null>(null);
 
   const shareCert = async (cert: any) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    const id = certIdOf(cert);
     const token = cert.verification_token || cert.certificate_id || cert.certificate_number || cert._id;
     const certTitle = cert.title || cert.competition_title || cert.activity_title || "Official Certificate";
-    const shareUrl = `https://upgradetalentsindia.in/verify/${encodeURIComponent(token)}`;
+    let shareUrl = `https://upgradetalentsindia.in/verify/${encodeURIComponent(String(token))}`;
+    let message = `🏆 Check out my verified ${certTitle} from Upgrade Talents India! Authenticity verified here: ${shareUrl}`;
     try {
-      await Share.share({
-        title: `${certTitle} — Upgrade Talents India`,
-        message: `🏆 Check out my verified ${certTitle} from Upgrade Talents India! Authenticity verified here: ${shareUrl}`,
-        url: shareUrl,
-      });
+      const meta = await extrasApi.certificateShare(String(id));
+      shareUrl = meta?.share_url || meta?.preview_url || meta?.url || shareUrl;
+      if (meta?.share_text || meta?.message) message = `${meta.share_text || meta.message} ${shareUrl}`.trim();
     } catch {}
+    try {
+      await Share.share({ title: `${certTitle} — Upgrade Talents India`, message, url: shareUrl });
+    } catch {}
+  };
+
+  const downloadCert = async (cert: any) => {
+    const id = certIdOf(cert);
+    if (!id) return;
+    setDownloading(String(id));
+    Haptics.selectionAsync().catch(() => {});
+    try {
+      const token = tokenStore.getUser();
+      const target = `${FileSystem.cacheDirectory || FileSystem.documentDirectory}certificate-${id}.pdf`;
+      const res = await FileSystem.downloadAsync(extrasApi.certificateDownloadUrl(String(id)), target, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      if (res.status >= 400) throw new Error(`Couldn't generate the certificate (${res.status}).`);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(res.uri, { mimeType: "application/pdf", dialogTitle: "Certificate", UTI: "com.adobe.pdf" });
+      } else {
+        alert("success", "Certificate ready", "Your certificate PDF has been saved.");
+      }
+    } catch (e: any) {
+      if (cert.pdf_url || cert.download_url) {
+        Linking.openURL(cert.pdf_url || cert.download_url).catch(() => {});
+      } else {
+        alert("error", "Couldn't download", e?.message || "Please try again in a moment.");
+      }
+    } finally {
+      setDownloading(null);
+    }
   };
 
   const verifyCert = (cert: any) => {
@@ -81,7 +120,6 @@ export default function Certificates() {
               const token = cert.verification_token || cert.certificate_id || cert.certificate_number;
               const certTitle = cert.title || cert.competition_title || cert.activity_title || cert.name || "Certificate";
               const certId = cert.certificate_id || cert.certificate_number || cert.number;
-              const isPdf = !!(cert.pdf_url || cert.download_url);
 
               return (
                 <Card key={cert._id || cert.id || i} padding={0} style={{ overflow: "hidden", backgroundColor: "#14161E", borderColor: "rgba(255, 255, 255, 0.08)" }}>
@@ -149,23 +187,23 @@ export default function Certificates() {
                         <Txt size={12} font="sansBold" style={{ color: "#ffffff" }}>Share</Txt>
                       </Pressable>
 
-                      {isPdf ? (
-                        <Pressable
-                          onPress={() => Linking.openURL(cert.pdf_url || cert.download_url).catch(() => {})}
-                          style={{
-                            width: 38,
-                            height: 38,
-                            borderRadius: 10,
-                            backgroundColor: "rgba(255, 255, 255, 0.06)",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            borderWidth: 1,
-                            borderColor: "rgba(255, 255, 255, 0.1)",
-                          }}
-                        >
-                          <Download size={16} color="#ffffff" />
-                        </Pressable>
-                      ) : null}
+                      <Pressable
+                        onPress={() => downloadCert(cert)}
+                        disabled={downloading === String(certIdOf(cert))}
+                        style={{
+                          width: 38,
+                          height: 38,
+                          borderRadius: 10,
+                          backgroundColor: "rgba(255, 255, 255, 0.06)",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          borderWidth: 1,
+                          borderColor: "rgba(255, 255, 255, 0.1)",
+                          opacity: downloading === String(certIdOf(cert)) ? 0.5 : 1,
+                        }}
+                      >
+                        <Download size={16} color="#ffffff" />
+                      </Pressable>
                     </View>
                   </View>
                 </Card>

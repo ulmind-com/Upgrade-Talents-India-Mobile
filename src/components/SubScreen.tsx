@@ -8,6 +8,7 @@ import * as Haptics from "expo-haptics";
 import { ArrowLeft } from "lucide-react-native";
 import { useTheme } from "@/theme/ThemeProvider";
 import { Txt, Glow } from "@/components/ui";
+import { playNavFeedback } from "@/lib/sound";
 
 /** Full-screen detail page with a Zomato District Gen-Z header, used across the (more) group. */
 export function SubScreen({
@@ -35,7 +36,7 @@ export function SubScreen({
   const router = useRouter();
 
   const handleBack = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    playNavFeedback();
     if (onBack) onBack();
     else if (router.canGoBack()) router.back();
     else router.replace("/(user)/profile");

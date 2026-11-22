@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { View } from "react-native";
-import { Server, Check, Sun, Moon, Repeat, Wifi } from "lucide-react-native";
+import { View, Pressable } from "react-native";
+import { Server, Check, Sun, Moon, Repeat, Wifi, Fingerprint, ChevronRight } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { SubScreen } from "@/components/SubScreen";
 import { useTheme } from "@/theme/ThemeProvider";
@@ -59,6 +59,24 @@ export default function Settings() {
           </View>
           <Divider />
           <ThemeRow active={true} label="Zomato District AMOLED Dark (Active)" icon={<Moon size={18} color="#C9F24A" />} onPress={() => setTheme("dark")} />
+        </Card>
+
+        <Card padding={0}>
+          <View style={{ padding: 16 }}>
+            <Txt size={13} font="monoMed" tone="subtle" tracking={2} uppercase>Security</Txt>
+          </View>
+          <Divider />
+          <Pressable
+            onPress={() => router.push("/(more)/passkeys")}
+            style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 14, padding: 16, opacity: pressed ? 0.7 : 1 })}
+          >
+            <Fingerprint size={18} color={c.accent} />
+            <View style={{ flex: 1 }}>
+              <Txt size={15} font="sansMed">Passkeys</Txt>
+              <Txt size={12.5} tone="subtle">Sign in with Face ID or fingerprint</Txt>
+            </View>
+            <ChevronRight size={18} color={c.fgSubtle} />
+          </Pressable>
         </Card>
 
         <Button

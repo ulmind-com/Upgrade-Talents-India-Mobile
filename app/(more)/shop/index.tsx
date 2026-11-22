@@ -8,7 +8,7 @@ import { useTheme } from "@/theme/ThemeProvider";
 import { shopApi, safe, toRows } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
 import { useCart } from "@/context/Cart";
-import { Txt, Card, Skeleton, EmptyState, ErrorState } from "@/components/ui";
+import { Txt, Card, Skeleton, EmptyState, ErrorState, SearchField } from "@/components/ui";
 import { AppImage } from "@/components/AppImage";
 import { FadeInUp } from "@/components/FadeInUp";
 import { DottedGrid } from "@/components/patterns";
@@ -22,13 +22,21 @@ export default function Shop() {
   const router = useRouter();
   const { count } = useCart();
   const [cat, setCat] = useState<string>("all");
+  const [q, setQ] = useState("");
 
   const products = useAsync(() => shopApi.products({ limit: 60 }), []);
   const categories = useAsync(() => safe(shopApi.categories(), []), []);
   const rows = toRows(products.data);
   const cats = ["all", ...toRows(categories.data).map((x: any) => (typeof x === "string" ? x : x.name || x.slug)).filter(Boolean)];
 
-  const filtered = useMemo(() => (cat === "all" ? rows : rows.filter((p: any) => (p.category || "").toLowerCase() === cat.toLowerCase())), [rows, cat]);
+  const filtered = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    return rows.filter((p: any) => {
+      if (cat !== "all" && (p.category || "").toLowerCase() !== cat.toLowerCase()) return false;
+      if (!s) return true;
+      return [p.name, p.category, p.description].filter(Boolean).some((v: any) => String(v).toLowerCase().includes(s));
+    });
+  }, [rows, cat, q]);
 
   return (
     <SubScreen
@@ -62,6 +70,10 @@ export default function Shop() {
           </LinearGradient>
         </View>
       </FadeInUp>
+
+      <View style={{ marginBottom: 14 }}>
+        <SearchField value={q} onChangeText={setQ} placeholder="Search merch" />
+      </View>
 
       {cats.length > 1 ? (
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
@@ -116,6 +128,8 @@ export default function Shop() {
             );
           })}
         </View>
+      ) : rows.length ? (
+        <EmptyState icon={<ShoppingBag size={26} color={c.fgMuted} />} title="Nothing matches" subtitle="Try a different search or category." />
       ) : (
         <EmptyState icon={<ShoppingBag size={26} color={c.fgMuted} />} title="No products yet" subtitle="New merch drops soon." />
       )}

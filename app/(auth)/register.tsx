@@ -5,13 +5,15 @@ import { StatusBar } from "expo-status-bar";
 import { Link, useRouter, useLocalSearchParams } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
-import { ArrowLeft, ArrowRight, Eye, EyeOff, Upload, Check, Mail, KeyRound, UserRound, MapPin, ShieldCheck, X, Gift } from "lucide-react-native";
+import { ArrowLeft, ArrowRight, Eye, EyeOff, Upload, Check, Mail, KeyRound, UserRound, MapPin, ShieldCheck, X, Gift, Sparkles } from "lucide-react-native";
 import { useTheme } from "@/theme/ThemeProvider";
 import { useSession } from "@/context/Session";
 import { authApi, extrasApi, tokenStore, ApiError } from "@/lib/api";
 import { Alert, Button, Field, Input, Txt, Glow } from "@/components/ui";
 import { useAlert } from "@/components/Popup";
 import { OtpVerify } from "@/components/OtpVerify";
+import { DobPicker } from "@/components/DobPicker";
+import { ProfilePhotoPicker } from "@/components/ProfilePhotoPicker";
 
 type Asset = { uri: string; name: string; type: string };
 const TOTAL = 5;
@@ -20,7 +22,7 @@ const STEP_META = [
   { Icon: KeyRound, eyebrow: "Verify email", title: "Enter the code", sub: "" },
   { Icon: UserRound, eyebrow: "About you", title: "Tell us about you", sub: "This appears on your tickets and certificates." },
   { Icon: MapPin, eyebrow: "Security", title: "Address & password", sub: "Keep your account safe." },
-  { Icon: ShieldCheck, eyebrow: "Almost there", title: "One last step", sub: "Add a photo so we recognise you. Verify your ID anytime with DigiLocker." },
+  { Icon: Sparkles, eyebrow: "Profile Look", title: "Choose your look", sub: "Upload your selfie or choose an artist avatar to shine across stages and leaderboards." },
 ];
 
 export default function Register() {
@@ -66,14 +68,6 @@ export default function Register() {
 
   const meta = STEP_META[step];
 
-  const pick = async (setter: (a: Asset) => void) => {
-    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.7 });
-    if (!res.canceled && res.assets?.[0]) {
-      const a = res.assets[0];
-      setter({ uri: a.uri, name: a.fileName || a.uri.split("/").pop() || "upload.jpg", type: a.mimeType || "image/jpeg" });
-    }
-  };
-
   const next = async () => {
     setFormError(null); setNotice(null); setErrors({});
     const e: Record<string, string> = {};
@@ -90,6 +84,7 @@ export default function Register() {
     if (step === 2) {
       if (!name.trim()) e.name = "Enter your full name.";
       if (!/^\d{10,15}$/.test(phone.replace(/\D/g, ""))) e.phone = "Enter a valid phone number.";
+      if (!/^\d{10,15}$/.test(parentPhone.replace(/\D/g, ""))) e.parentPhone = "Enter a valid parent / guardian number.";
       if (!/^\d{4}-\d{2}-\d{2}$/.test(dob)) e.dob = "Use the format YYYY-MM-DD.";
       if (Object.keys(e).length) return setErrors(e);
       setStep(3);
@@ -196,8 +191,8 @@ export default function Register() {
               {step === 1 && (
                 <OtpVerify
                   length={6}
-                  title="Enter the code"
-                  subtitle={`Sent to ${email}`}
+                  title=""
+                  subtitle=""
                   successTitle="Email Verified"
                   successSubtitle="Now let's set up your profile…"
                   onVerify={async (code) => {
@@ -220,11 +215,27 @@ export default function Register() {
                   <Field label="Phone number" error={errors.phone} required>
                     <Input value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="9876543210" invalid={!!errors.phone} />
                   </Field>
-                  <Field label="Parent's phone" hint="Required for minors.">
-                    <Input value={parentPhone} onChangeText={setParentPhone} keyboardType="phone-pad" placeholder="Optional" />
+                  <Field label="Parent's phone" error={errors.parentPhone} required>
+                    <Input
+                      value={parentPhone}
+                      onChangeText={(v) => {
+                        setParentPhone(v);
+                        if (errors.parentPhone) setErrors((e) => { const n = { ...e }; delete n.parentPhone; return n; });
+                      }}
+                      keyboardType="phone-pad"
+                      placeholder="9876543210"
+                      invalid={!!errors.parentPhone}
+                    />
                   </Field>
                   <Field label="Date of birth" error={errors.dob} required>
-                    <Input value={dob} onChangeText={setDob} placeholder="YYYY-MM-DD" keyboardType="numbers-and-punctuation" invalid={!!errors.dob} />
+                    <DobPicker
+                      value={dob}
+                      onChange={(v) => {
+                        setDob(v);
+                        if (errors.dob) setErrors((e) => { const n = { ...e }; delete n.dob; return n; });
+                      }}
+                      invalid={!!errors.dob}
+                    />
                   </Field>
                 </>
               )}
@@ -249,9 +260,11 @@ export default function Register() {
               )}
 
               {step === 4 && (
-                <>
-                  <UploadField label="Profile photo" hint="Optional — helps us recognise you." fileName={photo?.name} onPress={() => pick(setPhoto)} />
-                </>
+                <ProfilePhotoPicker
+                  photo={photo}
+                  onChange={setPhoto}
+                  userName={name || email.split("@")[0] || "You"}
+                />
               )}
             </View>
           </ScrollView>
@@ -269,19 +282,5 @@ export default function Register() {
         </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
-  );
-}
-
-function UploadField({ label, hint, fileName, onPress, required }: { label: string; hint?: string; fileName?: string; onPress: () => void; required?: boolean }) {
-  const { c } = useTheme();
-  return (
-    <Field label={label} hint={hint} required={required}>
-      <Pressable onPress={onPress} style={{ flexDirection: "row", alignItems: "center", gap: 14, minHeight: 64, borderRadius: 16, borderWidth: 1.5, borderStyle: "dashed", borderColor: fileName ? c.accent : c.borderStrong, paddingHorizontal: 16, backgroundColor: c.bgElevated }}>
-        <View style={{ width: 40, height: 40, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: c.surface2 }}>
-          {fileName ? <Check size={18} color={c.success} /> : <Upload size={18} color={c.accent} />}
-        </View>
-        <Txt size={14} tone={fileName ? "fg" : "muted"} numberOfLines={1} style={{ flex: 1 }}>{fileName || "Tap to choose a file"}</Txt>
-      </Pressable>
-    </Field>
   );
 }

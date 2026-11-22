@@ -15,6 +15,7 @@ import {
 } from "lucide-react-native";
 import { useTheme } from "@/theme/ThemeProvider";
 import { Txt } from "@/components/ui";
+import { playNavFeedback } from "@/lib/sound";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 const CARD_GAP = 12;
@@ -40,7 +41,7 @@ export function ExploreSection({
   const { c } = useTheme();
 
   const handlePress = (fn: () => void) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    playNavFeedback();
     fn();
   };
 

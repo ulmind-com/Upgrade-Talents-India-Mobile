@@ -249,13 +249,15 @@ export function OtpVerify({
         <LinearGradient colors={[c.success + "2e", "transparent"] as any} style={{ flex: 1 }} />
       </Animated.View>
 
-      <Txt size={19} font="sansExt" align="center" style={{ color: phase === "granted" ? c.success : c.fg }}>{headline}</Txt>
+      {headline ? (
+        <Txt size={19} font="sansExt" align="center" style={{ color: phase === "granted" ? c.success : c.fg }}>{headline}</Txt>
+      ) : null}
       {sub ? (
         <Txt size={12.5} lh={18} align="center" tone={phase === "error" ? "danger" : "muted"} style={{ marginTop: 6 }}>{sub}</Txt>
       ) : null}
 
       {/* ── stage ── */}
-      <View style={{ height: STAGE_H, alignItems: "center", justifyContent: "center", marginTop: 14 }}>
+      <View style={{ height: (phase === "input" || phase === "error") ? Math.round(tileW * 1.25) + 16 : STAGE_H, alignItems: "center", justifyContent: "center", marginTop: (headline || sub) ? 14 : 4 }}>
         {/* Act 1 — the row of tiles */}
         {phase === "input" || phase === "error" ? (
           <View style={{ flexDirection: "row", gap: 8 }}>
@@ -297,7 +299,7 @@ export function OtpVerify({
                     ],
                   }}
                 >
-                  <Txt size={22} font="display" tone="accent">{d}</Txt>
+                  <Txt size={22} font="sansExt" tone="accent">{d}</Txt>
                 </Animated.View>
               );
             })
@@ -398,8 +400,23 @@ function Tile({ w, value, invalid, inputRef, onChangeText, onKeyPress }: {
     Animated.timing(pop, { toValue: 1, duration: 340, easing: EASE, useNativeDriver: true }).start();
   }, [value]);
 
+  const tileH = Math.round(w * 1.25);
+
   return (
-    <Animated.View style={{ transform: [{ scale: pop.interpolate({ inputRange: [0, 0.45, 1], outputRange: [1, 1.14, 1] }) }] }}>
+    <Animated.View
+      style={{
+        width: w,
+        height: tileH,
+        borderRadius: 14,
+        borderWidth: 2,
+        borderColor: invalid ? c.danger : focused ? c.accent : value ? c.borderStrong : c.border,
+        backgroundColor: value ? c.surface2 : c.bgElevated,
+        alignItems: "center",
+        justifyContent: "center",
+        overflow: "hidden",
+        transform: [{ scale: pop.interpolate({ inputRange: [0, 0.45, 1], outputRange: [1, 1.14, 1] }) }],
+      }}
+    >
       <TextInput
         ref={inputRef}
         value={value}
@@ -410,17 +427,21 @@ function Tile({ w, value, invalid, inputRef, onChangeText, onKeyPress }: {
         keyboardType="number-pad"
         maxLength={6}
         selectTextOnFocus
+        textAlign="center"
+        textAlignVertical="center"
         style={{
-          width: w,
-          height: w * 1.22,
+          width: "100%",
+          height: "100%",
           textAlign: "center",
-          borderRadius: 14,
-          borderWidth: 2,
-          borderColor: invalid ? c.danger : focused ? c.accent : value ? c.borderStrong : c.border,
-          backgroundColor: value ? c.surface2 : c.bgElevated,
+          textAlignVertical: "center",
+          paddingVertical: 0,
+          paddingHorizontal: 0,
+          padding: 0,
+          margin: 0,
           color: invalid ? c.danger : c.fg,
-          fontFamily: fonts.display,
-          fontSize: 23,
+          fontFamily: fonts.sansExt,
+          fontSize: 24,
+          includeFontPadding: false,
         }}
       />
     </Animated.View>

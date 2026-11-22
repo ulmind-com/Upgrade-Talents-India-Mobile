@@ -1,7 +1,7 @@
 import React from "react";
 import { View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { Gift, TrendingUp, Users, Hourglass } from "lucide-react-native";
+import { Gift, TrendingUp, Users, Hourglass, Coins } from "lucide-react-native";
 import { SubScreen } from "@/components/SubScreen";
 import { ReferralHub } from "@/components/ReferralHub";
 import { useTheme } from "@/theme/ThemeProvider";
@@ -39,6 +39,11 @@ export default function Rewards() {
   };
   const expiring = lots.filter((l) => { const d = daysLeft(l.expires_at); return d !== null && d <= 30 && d >= 0; });
   const expiringCoins = expiring.reduce((n, l) => n + Number(l.remaining_coins || 0), 0);
+
+  const lotCoins = (l: any) => Number(l.remaining_coins ?? l.coins ?? l.amount ?? 0);
+  const activeLots = lots
+    .filter((l) => lotCoins(l) > 0)
+    .sort((a, b) => new Date(a.expires_at || 0).getTime() - new Date(b.expires_at || 0).getTime());
 
   return (
     <SubScreen eyebrow="Earn & refer" title="Rewards" refreshing={refreshing} onRefresh={user ? refresh : undefined}>
@@ -91,6 +96,43 @@ export default function Rewards() {
               <Txt size={13} lh={18} style={{ flex: 1 }}>
                 <Txt size={13} font="sansBold" tone="warning">{expiringCoins} coins</Txt> expire within 30 days — spend them on a course or ticket.
               </Txt>
+            </View>
+          ) : null}
+
+          {/* Coin lots — exactly what you hold and when each batch expires */}
+          {activeLots.length ? (
+            <View>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                <Txt size={16} font="sansBold" style={{ flex: 1 }}>Coins &amp; expiry</Txt>
+                <Txt size={11.5} font="monoMed" tone="subtle" tracking={1}>{activeLots.length} LOT{activeLots.length > 1 ? "S" : ""}</Txt>
+              </View>
+              <Card padding={0}>
+                {activeLots.slice(0, 12).map((l, i) => {
+                  const dleft = daysLeft(l.expires_at);
+                  const rem = lotCoins(l);
+                  const tone = dleft !== null && dleft <= 7 ? c.danger : dleft !== null && dleft <= 30 ? c.warning : c.fgMuted;
+                  return (
+                    <View key={i}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 14 }}>
+                        <View style={{ width: 38, height: 38, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: tone + "1f" }}>
+                          <Coins size={17} color={tone} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Txt size={14.5} font="sansBold">{rem} coins</Txt>
+                          {l.credited_at || l.created_at ? <Txt size={11.5} tone="subtle" style={{ marginTop: 1 }}>Credited {formatDateTime(l.credited_at || l.created_at)}</Txt> : null}
+                        </View>
+                        <View style={{ alignItems: "flex-end" }}>
+                          <Txt size={12.5} font="sansBold" style={{ color: tone }}>
+                            {dleft === null ? "No expiry" : dleft <= 0 ? "Expired" : `${dleft}d left`}
+                          </Txt>
+                          {l.expires_at ? <Txt size={10.5} tone="subtle" style={{ marginTop: 1 }}>{formatDateTime(l.expires_at)}</Txt> : null}
+                        </View>
+                      </View>
+                      {i < Math.min(activeLots.length, 12) - 1 ? <Divider style={{ marginLeft: 14 }} /> : null}
+                    </View>
+                  );
+                })}
+              </Card>
             </View>
           ) : null}
 

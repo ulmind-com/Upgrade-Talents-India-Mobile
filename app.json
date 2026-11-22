@@ -7,15 +7,16 @@
     "icon": "./assets/icon.png",
     "scheme": "uti",
     "userInterfaceStyle": "dark",
-    "backgroundColor": "#091124",
+    "backgroundColor": "#000000",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "in.upgradetalents.app"
+      "bundleIdentifier": "in.upgradetalents.app",
+      "associatedDomains": ["webcredentials:app.upgradetalentsindia.in"]
     },
     "android": {
       "package": "in.upgradetalents.app",
       "adaptiveIcon": {
-        "backgroundColor": "#091124",
+        "backgroundColor": "#000000",
         "foregroundImage": "./assets/android-icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false
@@ -49,7 +50,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#091124",
+          "backgroundColor": "#000000",
           "image": "./assets/splash-icon.png",
           "resizeMode": "contain",
           "imageWidth": 200
