@@ -17,6 +17,7 @@ import { Avatar } from "@/components/Avatar";
 import { VerifiedTick } from "@/components/VerifiedBadge";
 import { Pulse } from "@/components/motion";
 import { LiveStageLineupModal } from "@/components/LiveStageLineupModal";
+import { useRealtime } from "@/lib/realtime";
 
 const SPOT = "#FF385C";
 const OK = "#22C55E";
@@ -52,6 +53,7 @@ export function LiveStage({ compId, live }: { compId: string; live?: boolean }) 
   const [open, setOpen] = useState(false);
   const [now, setNow] = useState(Date.now());
 
+  const pullRef = useRef<() => void>(() => {});
   useEffect(() => {
     let alive = true;
     const pull = async () => {
@@ -67,6 +69,7 @@ export function LiveStage({ compId, live }: { compId: string; live?: boolean }) 
       }
       setNow(Date.now());
     };
+    pullRef.current = pull;
     pull();
     // the stage moves by the minute; a light poll keeps it honest (server caches 3s)
     const id = setInterval(pull, 12000);
@@ -75,6 +78,9 @@ export function LiveStage({ compId, live }: { compId: string; live?: boolean }) 
       clearInterval(id);
     };
   }, [compId, user?.email]);
+
+  // the stage moves → the server says so on `competition:<id>`; re-read right away
+  useRealtime([`competition:${compId}`], () => pullRef.current());
 
   const lineup: StagePerformer[] = Array.isArray(stage?.lineup) ? stage!.lineup! : [];
   const current = stage?.has_active_performer ? stage?.current_performer ?? null : null;

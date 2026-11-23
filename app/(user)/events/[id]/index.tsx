@@ -13,6 +13,7 @@ import { publicApi } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
 import { Txt, Badge, Button, Card, SectionLabel, Skeleton } from "@/components/ui";
 import { ShareSheet } from "@/components/ShareSheet";
+import { EventVipSection } from "@/components/vip/EventVipSection";
 import { AppImage, PosterFill } from "@/components/AppImage";
 import { useParallaxHero } from "@/components/ParallaxHero";
 import { FadeInUp } from "@/components/FadeInUp";
@@ -160,6 +161,9 @@ export default function EventDetail() {
               <Txt size={15} tone="muted" lh={24}>{ev.description}</Txt>
             </View>
           </FadeInUp>
+
+          {/* VIP tiers for this event — renders nothing if there are none */}
+          <EventVipSection eventId={String(ev._id)} eventTitle={ev.title} />
 
           {/* Perks */}
           <View style={{ gap: 14 }}>

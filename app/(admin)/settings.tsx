@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from "react";
-import { View } from "react-native";
-import { Save, Vote, Monitor, Smartphone, Coins, KeyRound, Mail } from "lucide-react-native";
+import { View, Pressable, ActivityIndicator } from "react-native";
+import { Save, Vote, Monitor, Smartphone, Coins, KeyRound, Mail, Webhook, Copy, Check, RefreshCw } from "lucide-react-native";
+import * as Clipboard from "expo-clipboard";
 import { AdminShell } from "@/components/admin/Shell";
 import {
   useAdmin, T, AButton, APanel, AField, AInput, ALoading, AKeyValues,
 } from "@/components/admin/ui";
 import { useSession } from "@/context/Session";
 import { useAlert } from "@/components/Popup";
-import { adminAuthApi, cmsApi, safe, getApiBase } from "@/lib/api";
+import { adminAuthApi, cmsApi, safe, getApiBase, razorpayWebhookApi, ApiError, type WebhookStatus } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
 
 const POWERS = [
@@ -98,9 +99,90 @@ export default function AdminSettings() {
         </View>
       </APanel>
 
+      <WebhookPanel />
+
       <PasswordPanel />
       <EmailPanel />
     </AdminShell>
+  );
+}
+
+/* ── Razorpay webhook health ──
+   The app never POSTs to the webhook (that's signed by Razorpay with a secret
+   that must stay on the server). It only pings the GET status endpoints so an
+   admin can confirm the URL pasted into Razorpay → Webhooks is live. */
+type Probe = { state: "checking" | "up" | "down"; status?: WebhookStatus; error?: string; ms?: number };
+
+function WebhookPanel() {
+  const c = useAdmin();
+  const urls = razorpayWebhookApi.urls();
+  const [root, setRoot] = useState<Probe>({ state: "checking" });
+  const [api, setApi] = useState<Probe>({ state: "checking" });
+  const [copied, setCopied] = useState<string | null>(null);
+
+  const probe = async (fn: () => Promise<WebhookStatus>, set: (p: Probe) => void) => {
+    set({ state: "checking" });
+    const t0 = Date.now();
+    try {
+      const st = await fn();
+      set({ state: String(st?.status).toLowerCase() === "active" ? "up" : "down", status: st, ms: Date.now() - t0 });
+    } catch (e) {
+      set({ state: "down", error: e instanceof ApiError ? e.message : "Not reachable", ms: Date.now() - t0 });
+    }
+  };
+  const check = () => {
+    probe(razorpayWebhookApi.statusRoot, setRoot);
+    probe(razorpayWebhookApi.statusApi, setApi);
+  };
+  useEffect(check, []);
+
+  const copy = async (u: string) => {
+    await Clipboard.setStringAsync(u);
+    setCopied(u);
+    setTimeout(() => setCopied(null), 1500);
+  };
+
+  const Row = ({ label, url, p }: { label: string; url: string; p: Probe }) => {
+    const color = p.state === "up" ? c.success : p.state === "down" ? c.danger : c.fgSubtle;
+    return (
+      <View style={{ borderRadius: 12, borderWidth: 1, borderColor: c.border, backgroundColor: c.surface2, padding: 14, marginBottom: 10 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          {p.state === "checking" ? (
+            <ActivityIndicator size="small" color={c.fgSubtle} />
+          ) : (
+            <View style={{ width: 8, height: 8, borderRadius: 999, backgroundColor: color }} />
+          )}
+          <T size={12.5} font="semi" style={{ flex: 1 }}>{label}</T>
+          <T size={11.5} font="semi" style={{ color }}>
+            {p.state === "checking" ? "Checking…" : p.state === "up" ? `Active${p.ms != null ? ` · ${p.ms} ms` : ""}` : "Unreachable"}
+          </T>
+        </View>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10 }}>
+          <T size={11.5} font="mono" numberOfLines={1} style={{ flex: 1 }}>{url}</T>
+          <Pressable onPress={() => copy(url)} hitSlop={8} accessibilityLabel={`Copy ${label} URL`} style={{ padding: 4 }}>
+            {copied === url ? <Check size={15} color={c.success} /> : <Copy size={15} color={c.fgSubtle} />}
+          </Pressable>
+        </View>
+        {p.status?.message || p.error ? (
+          <T size={11.5} mut lh={16} style={{ marginTop: 6 }}>{p.status?.message || p.error}</T>
+        ) : null}
+      </View>
+    );
+  };
+
+  return (
+    <APanel
+      title="Payments webhook"
+      subtitle="Paste one of these into Razorpay → Settings → Webhooks. Razorpay signs every event; the server verifies it."
+      action={<AButton label="Check" size="sm" icon={<RefreshCw size={13} color="#fff" />} onPress={check} />}
+    >
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <Webhook size={16} color={c.brand} />
+        <T size={12.5} mut>Health pings only — the app never sends webhook events itself.</T>
+      </View>
+      <Row label="Root endpoint" url={urls.root} p={root} />
+      <Row label="API endpoint" url={urls.api} p={api} />
+    </APanel>
   );
 }
 

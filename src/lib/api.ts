@@ -902,21 +902,160 @@ export const shopApi = {
     apiFetch<any>(`/api/merchandise/orders/${orderId}/cancel`, { method: "POST", auth: "user", body: { reason } }),
 };
 
-/* ─────────────── VIP PASSES (user) ─────────────── */
+/* ─────────────── VIP PASSES (user) ───────────────
+   Every VIP pass is PAID. Booking reserves capacity and opens a gateway order
+   (`payment_details.checkout_data`); the pass is only issued once the payment
+   is verified (`/vip/verify-payment`) or the gateway webhook lands. */
+
+export type VipCapacity = {
+  total_capacity: number;
+  booked_count: number;
+  confirmed_count: number;
+  pending_payment_count: number;
+  available_count: number;
+  sold_out: boolean;
+  booking_open: boolean;
+};
+
+export type VipConfig = {
+  _id?: string;
+  id?: string;
+  event_id: string;
+  event_title?: string;
+  name: string;
+  category?: string;
+  description?: string;
+  price: number;
+  currency?: string;
+  capacity?: VipCapacity;
+  booking_start?: string;
+  booking_end?: string;
+  validity_start?: string;
+  validity_end?: string;
+  max_passes_per_user?: number;
+  access_areas?: string[];
+  entry_policy?: "SINGLE_ENTRY" | "ALLOW_REENTRY" | string;
+  reentry_cooldown_minutes?: number;
+  max_entries?: number | null;
+  reservation_expiry_minutes?: number;
+  is_enabled?: boolean;
+  cancellation_policy?: string;
+};
+
+export type VipBookingStatus =
+  | "PENDING_PAYMENT" | "CONFIRMED" | "CANCELLED" | "EXPIRED" | "PAYMENT_FAILED" | "REFUND_PENDING" | "REFUNDED";
+
+export type VipPaymentDetails = {
+  provider?: string;
+  provider_order_id?: string;
+  amount?: number;
+  currency?: string;
+  /** CREATED, or PENDING_CONFIGURATION when the server has no gateway keys. */
+  status?: string;
+  payment_url?: string | null;
+  checkout_data?: {
+    key?: string;
+    amount?: number; // paise
+    currency?: string;
+    order_id?: string;
+    name?: string;
+    description?: string;
+    prefill?: { email?: string };
+    booking_reference?: string;
+  };
+  message?: string;
+};
+
+export type VipBooking = {
+  _id?: string;
+  booking_id: string;
+  booking_reference: string;
+  event_id: string;
+  event_title?: string;
+  configuration_id: string;
+  pass_name: string;
+  category?: string;
+  quantity: number;
+  unit_price: number;
+  total_amount: number;
+  currency: string;
+  holder_names?: string[];
+  booking_status: VipBookingStatus | string;
+  payment_status: string;
+  payment_reference?: string | null;
+  user_email: string;
+  idempotency_key?: string | null;
+  expires_at?: string | null;
+  booked_at: string;
+  payment_details?: VipPaymentDetails | null;
+  issued_pass_ids: string[];
+  capacity?: VipCapacity;
+};
+
+export type VipPass = {
+  _id?: string;
+  pass_id: string;
+  pass_reference: string;
+  booking_id?: string;
+  booking_reference?: string;
+  event_id: string;
+  event_title?: string;
+  configuration_id: string;
+  category?: string;
+  pass_name: string;
+  user_email: string;
+  holder_name: string;
+  status: "VALID" | "REVOKED" | "EXPIRED" | "CANCELLED" | string;
+  issued_at: string;
+  validity_start?: string;
+  validity_end?: string;
+  access_areas?: string[];
+  entry_policy?: string;
+  entries_count?: number;
+  max_entries?: number | null;
+  last_entry_at?: string | null;
+  qr_token?: string | null;
+  qr_image_base64?: string | null;
+  revocation_reason?: string | null;
+  revoked_at?: string | null;
+};
+
+export type VipPassQr = Pick<
+  VipPass,
+  "pass_id" | "pass_reference" | "holder_name" | "event_title" | "pass_name" | "status" | "qr_token" | "qr_image_base64" | "access_areas" | "validity_start" | "validity_end"
+>;
+
 export const userVipApi = {
-  forEvent: (eventId: string) => apiFetch<any[]>(`/api/events/${eventId}/vip-passes`),
-  config: (eventId: string, configId: string) => apiFetch<any>(`/api/events/${eventId}/vip-passes/${configId}`),
-  book: (eventId: string, configId: string, quantity = 1) =>
-    apiFetch<any>(`/api/events/${eventId}/vip-passes/${configId}/book`, { method: "POST", auth: "user", body: { quantity } }),
+  /** Enabled VIP configurations for an event, with live capacity. */
+  forEvent: (eventId: string) => apiFetch<VipConfig[]>(`/api/events/${encodeURIComponent(eventId)}/vip-passes`),
+  config: (eventId: string, configId: string) =>
+    apiFetch<VipConfig>(`/api/events/${encodeURIComponent(eventId)}/vip-passes/${encodeURIComponent(configId)}`),
+  /**
+   * Reserve + open a payment order. Re-sending the same `idempotency_key`
+   * returns the still-pending booking with a fresh order instead of a duplicate.
+   */
+  book: (eventId: string, configId: string, body: { quantity: number; holder_names?: string[]; idempotency_key?: string }) =>
+    apiFetch<VipBooking>(`/api/events/${encodeURIComponent(eventId)}/vip-passes/${encodeURIComponent(configId)}/book`, {
+      method: "POST",
+      auth: "user",
+      body,
+    }),
 
   /* What the signed-in member owns. */
   myBookings: (q?: { limit?: number; skip?: number }) =>
-    apiFetch<any>("/api/users/me/vip-bookings", { auth: "user", query: { limit: 50, ...q } }),
-  myBooking: (bookingId: string) => apiFetch<any>(`/api/users/me/vip-bookings/${bookingId}`, { auth: "user" }),
+    apiFetch<{ total: number; skip: number; limit: number; bookings: VipBooking[] }>("/api/users/me/vip-bookings", {
+      auth: "user",
+      query: { limit: 50, ...q },
+    }),
+  myBooking: (bookingId: string) => apiFetch<VipBooking>(`/api/users/me/vip-bookings/${encodeURIComponent(bookingId)}`, { auth: "user" }),
   myPasses: (q?: { limit?: number; skip?: number }) =>
-    apiFetch<any>("/api/users/me/vip-passes", { auth: "user", query: { limit: 50, ...q } }),
-  myPass: (passId: string) => apiFetch<any>(`/api/users/me/vip-passes/${passId}`, { auth: "user" }),
-  passQr: (passId: string) => apiFetch<any>(`/api/users/me/vip-passes/${passId}/qr`, { auth: "user" }),
+    apiFetch<{ total: number; skip: number; limit: number; passes: VipPass[] }>("/api/users/me/vip-passes", {
+      auth: "user",
+      query: { limit: 50, ...q },
+    }),
+  myPass: (passId: string) => apiFetch<VipPass>(`/api/users/me/vip-passes/${encodeURIComponent(passId)}`, { auth: "user" }),
+  /** The gate QR — image (base64) and/or token — for the pass owner only. */
+  passQr: (passId: string) => apiFetch<VipPassQr>(`/api/users/me/vip-passes/${encodeURIComponent(passId)}/qr`, { auth: "user" }),
 
   /** VIP checkout has its own verifier, separate from ticket bookings. */
   verifyPayment: (body: {
@@ -924,7 +1063,11 @@ export const userVipApi = {
     razorpay_order_id: string;
     razorpay_payment_id: string;
     razorpay_signature: string;
-  }) => apiFetch<any>("/api/vip/verify-payment", { method: "POST", auth: "user", body }),
+  }) =>
+    apiFetch<{ status: string; booking_reference: string; passes_issued_count: number; issued_pass_ids: string[] }>(
+      "/api/vip/verify-payment",
+      { method: "POST", auth: "user", body }
+    ),
 };
 
 export const activitiesApi = {
@@ -1044,6 +1187,20 @@ export const bookingsApi = {
   /** Re-send (or send) the admission pass + QR to the attendee's email inbox. */
   sendTicketEmail: (ticket_ref: string) =>
     apiFetch<any>(`/api/bookings/tickets/${encodeURIComponent(ticket_ref)}/send-email`, { method: "POST", auth: "user" }),
+};
+
+/* ─────────────── RAZORPAY WEBHOOK (health only) ───────────────
+   POST /razorpay/webhook and POST /api/razorpay/webhook are for Razorpay's
+   servers: every call is HMAC-signed with the webhook secret, which must never
+   ship in the app — so the app never calls them. The GETs are health pings an
+   admin can use to confirm the URL Razorpay posts to is reachable. */
+export type WebhookStatus = { status?: string; service?: string; message?: string };
+
+export const razorpayWebhookApi = {
+  /** The two URLs Razorpay can be pointed at (root, and under /api). */
+  urls: () => ({ root: `${getApiBase()}/razorpay/webhook`, api: `${getApiBase()}/api/razorpay/webhook` }),
+  statusRoot: () => apiFetch<WebhookStatus>("/razorpay/webhook"),
+  statusApi: () => apiFetch<WebhookStatus>("/api/razorpay/webhook"),
 };
 
 export const paymentsApi = {

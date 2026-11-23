@@ -44,6 +44,7 @@ import { useAlert } from "@/components/Popup";
 import { playNavFeedback } from "@/lib/sound";
 import { ShareSheet } from "@/components/ShareSheet";
 import { Podium, RankLaurel, type PodiumEntry } from "@/components/Podium";
+import { useRealtime } from "@/lib/realtime";
 
 /* ──────────────────────────────────────────────────────────────────────────
    Leaderboard — 3D Glass Block Podium & Championship Table
@@ -264,6 +265,11 @@ export default function Leaderboard() {
     setLbSwitching(false);
   };
 
+  /* live: votes / round changes on `competition:<id>` refresh the board in place
+     (declared after refreshBoard below via a ref, so it always calls the latest) */
+  const refreshRef = useRef<() => void>(() => {});
+  useRealtime([sel ? `competition:${sel}` : null], () => refreshRef.current());
+
   /** Pull-to-refresh and post-vote refresh: same board, fresh numbers, no skeleton. */
   const refreshBoard = async () => {
     if (!sel) return;
@@ -273,6 +279,7 @@ export default function Leaderboard() {
     if (id === reqId.current) applyBoard(res);
     setRefreshing(false);
   };
+  refreshRef.current = refreshBoard;
 
   // List entrance — once per competition/round, not on every refresh
   useEffect(() => {
