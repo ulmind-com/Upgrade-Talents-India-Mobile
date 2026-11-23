@@ -9,7 +9,7 @@ import { ThemeProvider } from "@/theme/ThemeProvider";
 import { fontMap } from "@/theme/fonts";
 import { SessionProvider, useSession } from "@/context/Session";
 import { CartProvider } from "@/context/Cart";
-import { Splash } from "@/components/Splash";
+import { Splash, SPLASH_MS } from "@/components/Splash";
 import { PopupProvider } from "@/components/Popup";
 import { OnboardingGate } from "@/components/OnboardingGate";
 
@@ -35,7 +35,7 @@ function Boot({ children }: { children: React.ReactNode }) {
   const [settled, setSettled] = useState(false);
   const [gone, setGone] = useState(false);
   useEffect(() => {
-    const t = setTimeout(() => setSettled(true), 2500);
+    const t = setTimeout(() => setSettled(true), SPLASH_MS);
     return () => clearTimeout(t);
   }, []);
 

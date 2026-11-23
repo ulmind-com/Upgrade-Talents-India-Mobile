@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import { View, Pressable } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { ShieldCheck, CheckCircle2, XCircle, Search, QrCode, Award, Calendar, Hash, Trophy, Sparkles, X } from "lucide-react-native";
+import { ShieldCheck, XCircle, Search, QrCode, Trophy } from "lucide-react-native";
 import { SubScreen } from "@/components/SubScreen";
 import { useTheme } from "@/theme/ThemeProvider";
-import { publicApi, ApiError } from "@/lib/api";
-import { Txt, Card, Field, Input, Button, Divider, Badge } from "@/components/ui";
+import { publicApi, ApiError, type CertificateVerification } from "@/lib/api";
+import { Txt, Card, Field, Input, Button, Divider } from "@/components/ui";
 import { QRScanner } from "@/components/QRScanner";
 import { formatEventDate, titleCase } from "@/lib/format";
 
@@ -14,7 +14,7 @@ export default function Verify() {
   const params = useLocalSearchParams<{ token?: string }>();
   const [token, setToken] = useState(params.token ? decodeURIComponent(String(params.token)) : "");
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<any | null>(null);
+  const [result, setResult] = useState<CertificateVerification | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
 
@@ -26,8 +26,11 @@ export default function Verify() {
     setError(null);
     setResult(null);
     try {
-      // Clean token in case user pasted or scanned a full URL
-      const cleanToken = raw.includes("/") ? raw.split("/").filter(Boolean).pop()! : raw;
+      // A scanned QR is usually a link — pull the token out of `?token=` or the last path segment
+      const fromQuery = /[?&](?:token|verification_token|t)=([^&#]+)/i.exec(raw)?.[1];
+      const cleanToken = decodeURIComponent(
+        fromQuery || (raw.includes("/") ? raw.split(/[?#]/)[0].split("/").filter(Boolean).pop()! : raw)
+      );
       const res = await publicApi.verifyCertificate(cleanToken);
       setResult(res);
       if (res?.verification_status === "NOT_FOUND") {
@@ -49,14 +52,17 @@ export default function Verify() {
   }, [params.token]);
 
   const status = result?.verification_status || result?.status;
-  const valid = result && (status === "VALID" || result?.is_valid === true) && status !== "REVOKED";
+  const valid = !!result && status === "VALID";
   const revoked = status === "REVOKED";
-  const r = result || {};
+  const r: Partial<CertificateVerification> = result || {};
 
-  const name = r.participant_name || r.recipient_name || r.holder_name;
-  const activity = r.activity_title || r.title || r.competition_title || r.course_title;
-  const certId = r.certificate_id || r.certificate_number || r.number || token;
-  const issueDate = r.issue_date || r.issued_at || r.created_at;
+  const name = r.participant_name;
+  const activity = r.activity_title;
+  const certId = r.certificate_id || token;
+  // backend sends "YYYY-MM-DD", or "N/A" when unknown
+  const issueDate = r.issue_date && r.issue_date !== "N/A" ? r.issue_date : null;
+  const tone = valid ? c.success : c.danger;
+  const award = [r.award_title, r.rank ? `Rank #${r.rank}` : null].filter(Boolean).join("  ·  ");
 
   return (
     <SubScreen eyebrow="Authenticity check" title="Verify certificate">
@@ -121,60 +127,55 @@ export default function Verify() {
       ) : null}
 
       {result && !error ? (
-        <Card
-          style={{
-            marginTop: 20,
-            padding: 20,
-            borderWidth: 1.5,
-            borderColor: valid ? "#C9F24A" : revoked ? c.danger : c.border,
-            backgroundColor: "#14161E",
-          }}
-        >
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              {valid ? <CheckCircle2 size={22} color="#C9F24A" /> : <XCircle size={22} color={c.danger} />}
-              <Txt size={16} font="sansBold" style={{ color: valid ? "#C9F24A" : c.danger }}>
-                {valid ? "Verified & Authentic" : revoked ? "Certificate Revoked" : "Not Valid"}
-              </Txt>
+        <Card style={{ marginTop: 20, padding: 20, borderWidth: 1.5, borderColor: tone + "66", backgroundColor: "#14161E" }}>
+          {/* verdict */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+            <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: tone + "1F", alignItems: "center", justifyContent: "center" }}>
+              {valid ? <ShieldCheck size={22} color={tone} /> : <XCircle size={22} color={tone} />}
             </View>
-            <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: "rgba(201,242,74,0.12)", alignItems: "center", justifyContent: "center" }}>
-              <Award size={20} color="#C9F24A" />
+            <View style={{ flex: 1 }}>
+              <Txt size={17} font="sansBold" style={{ color: tone }}>
+                {valid ? "Verified & authentic" : revoked ? "Certificate revoked" : "Not valid"}
+              </Txt>
+              <Txt size={12} tone="muted" style={{ marginTop: 2 }}>
+                {valid ? "Issued by Upgrade Talents India" : r.message || "This certificate can't be trusted."}
+              </Txt>
             </View>
           </View>
 
-          <Divider style={{ marginVertical: 14 }} />
+          <Divider style={{ marginVertical: 16 }} />
 
           {valid && name ? (
-            <View style={{ marginBottom: 14 }}>
-              <Txt size={11} font="monoMed" tracking={1.5} uppercase style={{ color: "#9ea3b8" }}>
+            <View style={{ marginBottom: 16 }}>
+              <Txt size={11} font="sansBold" tracking={1.5} uppercase style={{ color: "#9ea3b8" }}>
                 This certifies that
               </Txt>
               <Txt size={22} font="display" style={{ color: "#ffffff", marginTop: 4 }}>
                 {name}
               </Txt>
-              {activity ? (
-                <Txt size={13.5} style={{ color: "#9ea3b8", marginTop: 4 }}>
-                  {r.certificate_type === "ACHIEVEMENT" || r.rank ? "Achieved distinction in" : "Participated in"}{" "}
-                  <Txt size={13.5} font="sansBold" style={{ color: "#ffffff" }}>{activity}</Txt>
-                </Txt>
-              ) : null}
             </View>
           ) : null}
 
-          {r.award_title || r.rank ? (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 14, backgroundColor: "rgba(255, 56, 92, 0.12)", marginBottom: 14 }}>
+          {activity ? (
+            <Txt size={13.5} lh={20} style={{ color: "#9ea3b8", marginBottom: award ? 12 : 16 }}>
+              {valid ? (r.certificate_type === "ACHIEVEMENT" || r.rank || r.award_title ? "Achieved distinction in " : "Participated in ") : "Issued for "}
+              <Txt size={13.5} font="sansBold" style={{ color: "#ffffff" }}>{activity}</Txt>
+            </Txt>
+          ) : null}
+
+          {valid && award ? (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 14, backgroundColor: "rgba(255, 56, 92, 0.12)", marginBottom: 16 }}>
               <Trophy size={18} color="#FF385C" />
-              <Txt size={13.5} font="sansBold" style={{ color: "#FF385C" }}>
-                {r.award_title || `Rank #${r.rank}`}
-              </Txt>
+              <Txt size={13.5} font="sansBold" style={{ color: "#FF385C", flex: 1 }}>{award}</Txt>
             </View>
           ) : null}
 
-          <View style={{ gap: 10 }}>
+          <View style={{ gap: 12 }}>
             {certId ? <Row label="Certificate ID" value={certId} mono /> : null}
-            {r.certificate_type ? <Row label="Type" value={titleCase(r.certificate_type)} /> : null}
-            {issueDate ? <Row label="Issue date" value={formatEventDate(issueDate)} /> : null}
-            {r.revocation_reason ? <Row label="Reason" value={r.revocation_reason} /> : null}
+            {r.certificate_type ? <Row label="Type" value={titleCase(r.certificate_type.replace(/_/g, " "))} /> : null}
+            {r.activity_type ? <Row label="For" value={titleCase(r.activity_type.replace(/_/g, " "))} /> : null}
+            {issueDate ? <Row label="Issued" value={formatEventDate(issueDate)} /> : null}
+            {revoked && r.revocation_reason ? <Row label="Reason" value={r.revocation_reason} /> : null}
           </View>
         </Card>
       ) : null}
@@ -185,7 +186,7 @@ export default function Verify() {
 function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
-      <Txt size={12} tone="subtle" font="monoMed" tracking={1} uppercase>{label}</Txt>
+      <Txt size={12} tone="subtle" font="sansSemi">{label}</Txt>
       <Txt size={13} font={mono ? "mono" : "sansSemi"} style={{ flex: 1, textAlign: "right", color: "#ffffff" }} numberOfLines={2}>{value}</Txt>
     </View>
   );

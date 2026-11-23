@@ -5,6 +5,7 @@ import { Mic, MapPin, ChevronRight, Check, Clock, Users, ListOrdered } from "luc
 import { useSession } from "@/context/Session";
 import {
   competeApi,
+  liveApi,
   publicCompetitionsApi,
   safe,
   type LiveStageData,
@@ -56,7 +57,7 @@ export function LiveStage({ compId, live }: { compId: string; live?: boolean }) 
     const pull = async () => {
       const d = user
         ? await safe(competeApi.liveStage(compId), null)
-        : await safe(publicCompetitionsApi.liveStage(compId), null);
+        : await safe(liveApi.stage(compId).catch(() => publicCompetitionsApi.liveStage(compId)), null);
       if (!alive) return;
       if (d) setStage(d);
       // nobody on stage → the confirmed lineup is the interesting thing

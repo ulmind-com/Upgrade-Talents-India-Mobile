@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect, useCallback } from "react";
 import {
   View,
   Pressable,
@@ -9,7 +9,9 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
   StyleSheet,
+  AppState,
 } from "react-native";
+import { useFocusEffect } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import * as SecureStore from "expo-secure-store";
@@ -59,14 +61,20 @@ export function SpotlightCarousel({
   const flatListRef = useRef<FlatList<EventItem>>(null);
   const scrollX = useRef(new Animated.Value(0)).current;
   const isInteracting = useRef(false);
+  /** True from the moment a finger drags until the scroll settles — only those slide changes buzz. */
+  const userSwipe = useRef(false);
+  /** Autoplay only runs while this screen is on top and the app is in the foreground. */
+  const focused = useRef(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const startTimer = () => {
     stopTimer();
+    if (!focused.current || AppState.currentState !== "active") return;
     if (events && events.length > 1) {
       timerRef.current = setInterval(() => {
         if (isInteracting.current || !events || events.length <= 1) return;
         const next = (activeIdxRef.current + 1) % events.length;
+        userSwipe.current = false; // this move is ours, not the user's — stay silent
         flatListRef.current?.scrollToOffset({
           offset: next * ITEM_FULL_WIDTH,
           animated: true,
@@ -82,10 +90,25 @@ export function SpotlightCarousel({
     }
   };
 
-  // Start auto-play timer on mount & reset on unmount or events change
+  // Auto-play while the screen is focused; tabs stay mounted, so pausing on
+  // blur is what stops the carousel turning (and buzzing) behind other screens.
+  useFocusEffect(
+    useCallback(() => {
+      focused.current = true;
+      startTimer();
+      return () => {
+        focused.current = false;
+        stopTimer();
+      };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [events?.length])
+  );
+
+  // …and while the app itself is in the foreground.
   useEffect(() => {
-    startTimer();
-    return () => stopTimer();
+    const sub = AppState.addEventListener("change", (st) => (st === "active" ? startTimer() : stopTimer()));
+    return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [events?.length]);
 
   // Load saved bookmarks from SecureStore
@@ -131,9 +154,8 @@ export function SpotlightCarousel({
         const idx = Math.round(offsetX / ITEM_FULL_WIDTH);
         if (idx >= 0 && idx < events.length && idx !== activeIdx) {
           setActiveIdx(idx);
-          try {
-            Haptics.selectionAsync();
-          } catch {}
+          // a tick for the user's own swipe — never for autoplay
+          if (userSwipe.current) Haptics.selectionAsync().catch(() => {});
         }
       },
     }
@@ -158,6 +180,7 @@ export function SpotlightCarousel({
         scrollEventThrottle={16}
         onScrollBeginDrag={() => {
           isInteracting.current = true;
+          userSwipe.current = true;
           stopTimer();
         }}
         onScrollEndDrag={() => {
@@ -166,6 +189,7 @@ export function SpotlightCarousel({
         }}
         onMomentumScrollEnd={() => {
           isInteracting.current = false;
+          userSwipe.current = false;
           startTimer();
         }}
         renderItem={({ item, index }) => {

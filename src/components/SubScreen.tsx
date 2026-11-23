@@ -88,9 +88,16 @@ export function SubScreen({
     <View style={{ flex: 1, backgroundColor: "#08090C" }}>
       <StatusBar style="light" />
 
-      {/* Zomato District Signature Ambient Violet Glow at the top */}
+      {/* Soft brand-orange glow at the top — the logo's hue, low enough to sit on black */}
       <LinearGradient
-        colors={["rgba(139, 92, 246, 0.32)", "rgba(139, 92, 246, 0.08)", "transparent"]}
+        colors={[
+          "rgba(255, 122, 48, 0.20)",
+          "rgba(255, 112, 38, 0.11)",
+          "rgba(255, 106, 30, 0.05)",
+          "rgba(255, 106, 30, 0.015)",
+          "rgba(255, 106, 30, 0)",
+        ]}
+        locations={[0, 0.25, 0.5, 0.75, 1]}
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
         style={{
@@ -98,7 +105,7 @@ export function SubScreen({
           top: 0,
           left: 0,
           right: 0,
-          height: 340,
+          height: 300, // soft top wash — eases out to nothing, no visible edge
           pointerEvents: "none",
         }}
       />

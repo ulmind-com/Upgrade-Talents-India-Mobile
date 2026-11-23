@@ -7,7 +7,7 @@ import { StatusBar } from "expo-status-bar";
 import { Bell, Search } from "lucide-react-native";
 import { useTheme } from "@/theme/ThemeProvider";
 import { useSession } from "@/context/Session";
-import { publicApi, extrasApi, publicCompetitionsApi, safe, type HomepagePayload, type TestimonialItem } from "@/lib/api";
+import { publicApi, extrasApi, safe, type HomepagePayload, type TestimonialItem } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
 import { Txt, Skeleton } from "@/components/ui";
 import { AppImage } from "@/components/AppImage";
@@ -20,12 +20,12 @@ import { ReferralBanner } from "@/components/ReferralBanner";
 import { StageBand, type GalleryItem } from "@/components/StageBand";
 import { PartnerMarquee } from "@/components/showcase";
 import { LiveNow } from "@/components/LiveNow";
-import { LiveVotingBand } from "@/components/LiveVoting";
-import { liveVotingRows } from "@/lib/competition";
+import { LiveNowBar } from "@/components/live/LiveBits";
 import { BrandFooter } from "@/components/BrandFooter";
 import { ReviewDetailModal } from "@/components/ReviewDetailModal";
 import { publishedInOrder, visible } from "@/lib/live";
 import { formatEventDate, formatINR } from "@/lib/format";
+import { playNavFeedback } from "@/lib/sound";
 import {
   SectionHead,
   PosterRail,
@@ -94,15 +94,6 @@ export default function Home() {
     { refetchOnFocus: true }
   );
   const unreadCount = Number(unread.data?.unread_count ?? 0);
-
-  /* "Voting live" is the server's call, not something the homepage payload
-     knows — contest_promotions are banners, with no poll state on them. */
-  const lv = useAsync(
-    () => (user ? safe(publicCompetitionsApi.liveVoting(), null) : Promise.resolve(null)),
-    [user?.email],
-    { refetchOnFocus: true }
-  );
-  const livePolls = React.useMemo(() => liveVotingRows(lv.data), [lv.data]);
 
   /* Real competitions beat promo banners — the banner is only the fallback
      for when the admin has published art but no live competition yet. */
@@ -214,130 +205,171 @@ export default function Home() {
     { key: "shop", label: "Shop", Icon: ShopIcon, glow: "#10b981", onPress: () => router.push("/(more)/shop") },
   ];
 
+  const [headerH, setHeaderH] = React.useState(62);
+
   return (
     <View style={{ flex: 1, backgroundColor: "#000000" }}>
       <StatusBar style="light" />
 
-      {/* One ambient wash at the very top — the page's only gradient. */}
-      <LinearGradient
-        colors={["rgba(139, 92, 246, 0.26)", "rgba(88, 28, 135, 0.10)", "transparent"]}
-        start={{ x: 0.3, y: 0 }}
-        end={{ x: 0.7, y: 1 }}
-        style={{ position: "absolute", top: 0, left: 0, right: 0, height: 260 }}
+      {/* One ambient wash, top only (like a status-bar glow) — pinned to the
+          top and fading out as you scroll, so it never follows content down. */}
+      <Animated.View
         pointerEvents="none"
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: insets.top + 300,
+          opacity: scrollY.interpolate({ inputRange: [0, 220], outputRange: [1, 0], extrapolate: "clamp" }),
+        }}
+      >
+        <LinearGradient
+          colors={[
+            "rgba(255, 122, 48, 0.20)",
+            "rgba(255, 112, 38, 0.11)",
+            "rgba(255, 106, 30, 0.05)",
+            "rgba(255, 106, 30, 0.015)",
+            "rgba(255, 106, 30, 0)",
+          ]}
+          locations={[0, 0.25, 0.5, 0.75, 1]}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={{ flex: 1 }}
+        />
+      </Animated.View>
+
+      {/* status-bar backdrop — goes solid once content scrolls under it */}
+      <Animated.View
+        pointerEvents="none"
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: insets.top,
+          zIndex: 20,
+          backgroundColor: "#000000",
+          opacity: scrollY.interpolate({ inputRange: [0, headerH], outputRange: [0, 1], extrapolate: "clamp" }),
+        }}
       />
 
       <GrandSponsorModal popup={(hp as any).grand_sponsor_popup} />
 
-      {/* Header — who you are on the left, what needs you on the right. */}
-      <View
-        style={{
-          paddingTop: insets.top + 8,
-          paddingHorizontal: 20,
-          paddingBottom: 10,
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
-          zIndex: 10,
-        }}
-      >
-        <Pressable
-          onPress={() => router.push("/(user)/profile")}
-          hitSlop={8}
-          style={({ pressed }) => ({
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 12,
-            flex: 1,
-            marginRight: 12,
-            opacity: pressed ? 0.85 : 1,
-          })}
-        >
-          <View
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: 999,
-              overflow: "hidden",
-              borderWidth: 1.5,
-              borderColor: "rgba(255, 255, 255, 0.22)",
-              backgroundColor: "#181a24",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            {user?.profile_photo || user?.photo ? (
-              <AppImage uri={user.profile_photo || user.photo} style={{ width: "100%", height: "100%" }} />
-            ) : (
-              <Avatar name={user?.name || "U"} size={44} />
-            )}
-          </View>
-          <View style={{ flex: 1, justifyContent: "center" }}>
-            <Txt size={11.5} font="sansMed" style={{ color: c.fgMuted }}>
-              {greeting()} 👋
-            </Txt>
-            <Txt
-              size={16.5}
-              font="sansBold"
-              numberOfLines={1}
-              style={{ color: "#ffffff", letterSpacing: -0.3, marginTop: 1 }}
-            >
-              {user?.name ? user.name.trim().split(/\s+/)[0] : "Guest"}
-            </Txt>
-          </View>
-        </Pressable>
-
-        <Pressable
-          onPress={() => router.push(user ? "/(more)/notifications" : "/(user)/profile")}
-          hitSlop={8}
-          style={{
-            width: 42,
-            height: 42,
-            borderRadius: 999,
-            backgroundColor: "rgba(255, 255, 255, 0.08)",
-            borderWidth: 1,
-            borderColor: "rgba(255, 255, 255, 0.12)",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <Bell size={19} color={unreadCount ? "#ff385c" : "#ffffff"} />
-          {user && unreadCount ? (
-            <View
-              style={{
-                position: "absolute",
-                top: -4,
-                right: -4,
-                minWidth: 16,
-                height: 16,
-                paddingHorizontal: 4,
-                borderRadius: 999,
-                backgroundColor: "#ff385c",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Txt size={9} font="sansBold" style={{ color: "#fff" }}>
-                {unreadCount > 9 ? "9+" : unreadCount}
-              </Txt>
-            </View>
-          ) : null}
-        </Pressable>
-      </View>
-
       <Animated.ScrollView
+        style={{ marginTop: insets.top }}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 130 }}
         scrollEventThrottle={16}
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor="#ff385c" colors={["#ff385c"]} />}
       >
-        {/* Search */}
+          {/* Header — who you are on the left, what needs you on the right. */}
+          <View
+            onLayout={(e) => setHeaderH(Math.round(e.nativeEvent.layout.height))}
+            style={{
+              paddingTop: 8,
+              paddingHorizontal: 20,
+              paddingBottom: 6,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <Pressable
+              onPress={() => {
+                playNavFeedback();
+                router.push(user ? "/(more)/profile" : "/(auth)/login");
+              }}
+              hitSlop={8}
+              style={({ pressed }) => ({
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 12,
+                flex: 1,
+                marginRight: 12,
+                opacity: pressed ? 0.85 : 1,
+              })}
+            >
+              <View
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 999,
+                  overflow: "hidden",
+                  borderWidth: 1.5,
+                  borderColor: "rgba(255, 255, 255, 0.22)",
+                  backgroundColor: "#181a24",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {user?.profile_photo || user?.photo ? (
+                  <AppImage uri={user.profile_photo || user.photo} style={{ width: "100%", height: "100%" }} />
+                ) : (
+                  <Avatar name={user?.name || "U"} size={44} />
+                )}
+              </View>
+              <View style={{ flex: 1, justifyContent: "center" }}>
+                <Txt size={11.5} font="sansMed" style={{ color: c.fgMuted }}>
+                  {greeting()} 👋
+                </Txt>
+                <Txt
+                  size={16.5}
+                  font="sansBold"
+                  numberOfLines={1}
+                  style={{ color: "#ffffff", letterSpacing: -0.3, marginTop: 1 }}
+                >
+                  {user?.name ? user.name.trim().split(/\s+/)[0] : "Guest"}
+                </Txt>
+              </View>
+            </Pressable>
+
+            <Pressable
+              onPress={() => router.push(user ? "/(more)/notifications" : "/(user)/profile")}
+              hitSlop={8}
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: 999,
+                backgroundColor: "rgba(255, 255, 255, 0.08)",
+                borderWidth: 1,
+                borderColor: "rgba(255, 255, 255, 0.12)",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Bell size={19} color={unreadCount ? "#ff385c" : "#ffffff"} />
+              {user && unreadCount ? (
+                <View
+                  style={{
+                    position: "absolute",
+                    top: -4,
+                    right: -4,
+                    minWidth: 16,
+                    height: 16,
+                    paddingHorizontal: 4,
+                    borderRadius: 999,
+                    backgroundColor: "#ff385c",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Txt size={9} font="sansBold" style={{ color: "#fff" }}>
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </Txt>
+                </View>
+              ) : null}
+            </Pressable>
+          </View>
+
+        {/* Search — scrolls with the page like everything else */}
+        <View style={{ paddingTop: 8, paddingBottom: 10 }}>
+
         <Pressable
           onPress={() => router.push("/(more)/search")}
           style={{
             marginHorizontal: 20,
-            marginTop: 6,
             flexDirection: "row",
             alignItems: "center",
             gap: 10,
@@ -354,6 +386,7 @@ export default function Home() {
             Search events, competitions, artists…
           </Txt>
         </Pressable>
+        </View>
 
         {/* Explore — four glossy doors */}
         <ExploreGrid items={exploreItems} />
@@ -371,6 +404,8 @@ export default function Home() {
         </View>
 
         {/* Live now — urgent, so it sits high, but in the same clean grammar */}
+        {/* door into the Live hub — counts straight from /live/summary */}
+        <LiveNowBar style={{ marginTop: SECTION_GAP }} onPress={() => router.push("/(more)/live")} />
         {liveEvents.length ? <LiveNow events={liveEvents} onOpen={openLive} /> : null}
 
         {/* Competitions */}
@@ -383,20 +418,6 @@ export default function Home() {
                 onPress={() => router.push("/(more)/competitions")}
               />
               <PosterRail items={compRail} />
-            </View>
-          </Reveal>
-        ) : null}
-
-        {/* Voting is open — belongs with competitions, not on its own island */}
-        {livePolls.length ? (
-          <Reveal scrollY={scrollY}>
-            <View style={{ marginTop: SECTION_GAP }}>
-              <LiveVotingBand
-                rows={livePolls}
-                compact
-                title="Voting is open"
-                onOpen={(id) => router.push(`/(more)/competitions/${id}`)}
-              />
             </View>
           </Reveal>
         ) : null}

@@ -169,6 +169,7 @@ export default function Leaderboard() {
   const list = toRows(comps.data);
   const [sel, setSel] = useState<string | null>(initialCompId || null);
   const [search, setSearch] = useState("");
+  const [searchFocused, setSearchFocused] = useState(false);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState("ALL");
   const [activeRound, setActiveRound] = useState<number | null>(null);
@@ -195,62 +196,87 @@ export default function Leaderboard() {
     }
   }, [list.length]);
 
-  // Fetch rounds & categories on competition change
-  useEffect(() => {
-    if (!sel) return;
-    publicApi
-      .rounds(sel)
-      .then((res: any) => {
-        if (res && Array.isArray(res.rounds) && res.rounds.length > 0) {
-          const live = res.current_round ?? res.rounds[0].round_number ?? 1;
-          // deep link from the competition's round journey: ?round=N
-          const asked = Number(params.round);
-          const want =
-            !roundParamUsed.current && asked && res.rounds.some((r: RoundInfo) => r.round_number === asked) ? asked : live;
-          roundParamUsed.current = true;
-          setRounds(res.rounds);
-          setCurrentRound(live);
-          setActiveRound(want);
-        } else {
-          setRounds([]);
-          setCurrentRound(null);
-          setActiveRound(null);
-        }
-      })
-      .catch(() => {
-        setRounds([]);
-        setCurrentRound(null);
-        setActiveRound(null);
-      });
-    // a new competition starts with its own divisions
-    setCategories([]);
-    setCategoryLeaderboards({});
-    setActiveCategory("ALL");
-  }, [sel]);
+  /* ── Standings loader ──
+     One pass per competition: rounds first, then the standings for the round
+     we'll actually show — so the screen fills once instead of loading the
+     overall board and then reloading it for the round. Every request carries
+     an id; anything older than the latest is dropped, so fast taps can't
+     paint stale data. */
+  const [lbData, setLbData] = useState<any>(null);
+  const [lbLoading, setLbLoading] = useState(true); // first fill for this competition
+  const [lbSwitching, setLbSwitching] = useState(false); // round change — keep old board up
+  const [refreshing, setRefreshing] = useState(false);
+  const reqId = useRef(0);
 
-  const lb = useAsync(async () => {
-    if (!sel) return { leaderboard: [] };
+  const fetchBoard = async (compId: string, round: number | null, multi: boolean) => {
     try {
-      let res: any;
-      if (activeRound && rounds.length > 1) {
-        res = await publicApi.roundLeaderboard(sel, activeRound);
-      } else {
-        res = await publicApi.leaderboard(sel);
-      }
-      if (Array.isArray(res?.categories)) {
-        setCategories(res.categories);
-      }
-      if (res?.category_leaderboards && typeof res.category_leaderboards === "object") {
-        setCategoryLeaderboards(res.category_leaderboards);
-      }
-      return res;
+      return multi && round ? await publicApi.roundLeaderboard(compId, round) : await publicApi.leaderboard(compId);
     } catch {
       return { leaderboard: [] };
     }
-  }, [sel, activeRound]);
+  };
 
-  // Entrance spring animation
+  const applyBoard = (res: any) => {
+    setLbData(res);
+    setCategories(Array.isArray(res?.categories) ? res.categories : []);
+    setCategoryLeaderboards(
+      res?.category_leaderboards && typeof res.category_leaderboards === "object" ? res.category_leaderboards : {}
+    );
+  };
+
   useEffect(() => {
+    if (!sel) return;
+    const id = ++reqId.current;
+    setLbLoading(true);
+    setActiveCategory("ALL");
+    (async () => {
+      const rr = await safe(publicApi.rounds(sel), null);
+      if (id !== reqId.current) return;
+      const list: RoundInfo[] = Array.isArray(rr?.rounds) ? rr!.rounds! : [];
+      let want: number | null = null;
+      let live: number | null = null;
+      if (list.length) {
+        live = rr?.current_round ?? list[0].round_number ?? 1;
+        // deep link from the competition's round journey: ?round=N
+        const asked = Number(params.round);
+        want = !roundParamUsed.current && asked && list.some((r) => r.round_number === asked) ? asked : live;
+        roundParamUsed.current = true;
+      }
+      const res = await fetchBoard(sel, want, list.length > 1);
+      if (id !== reqId.current) return;
+      setRounds(list);
+      setCurrentRound(live);
+      setActiveRound(want);
+      applyBoard(res);
+      setLbLoading(false);
+    })();
+  }, [sel]);
+
+  /** Switch rounds without blanking the screen. */
+  const pickRound = async (round: number) => {
+    if (!sel || round === activeRound) return;
+    const id = ++reqId.current;
+    setActiveRound(round);
+    setLbSwitching(true);
+    const res = await fetchBoard(sel, round, rounds.length > 1);
+    if (id !== reqId.current) return;
+    applyBoard(res);
+    setLbSwitching(false);
+  };
+
+  /** Pull-to-refresh and post-vote refresh: same board, fresh numbers, no skeleton. */
+  const refreshBoard = async () => {
+    if (!sel) return;
+    const id = ++reqId.current;
+    setRefreshing(true);
+    const res = await fetchBoard(sel, activeRound, rounds.length > 1);
+    if (id === reqId.current) applyBoard(res);
+    setRefreshing(false);
+  };
+
+  // List entrance — once per competition/round, not on every refresh
+  useEffect(() => {
+    if (lbLoading) return;
     animList.setValue(0);
     Animated.timing(animList, {
       toValue: 1,
@@ -258,16 +284,16 @@ export default function Leaderboard() {
       useNativeDriver: true,
       delay: 260,
     }).start();
-  }, [sel, activeRound, lb.data]);
+  }, [sel, activeRound, lbLoading]);
 
   // Compute effective rows
   const rawRows: Row[] = useMemo(() => {
     if (activeCategory !== "ALL" && categoryLeaderboards[activeCategory]) {
       return categoryLeaderboards[activeCategory];
     }
-    const data = lb.data as any;
+    const data = lbData as any;
     return (data?.leaderboard || toRows(data) || []) as Row[];
-  }, [lb.data, activeCategory, categoryLeaderboards]);
+  }, [lbData, activeCategory, categoryLeaderboards]);
 
   // Filtered by search
   const filteredRows = useMemo(() => {
@@ -308,7 +334,7 @@ export default function Leaderboard() {
   const [bump, setBump] = useState<Record<string, number>>({});
   // the optimistic +1 only bridges the gap until fresh standings arrive (an app
   // vote is weighted server-side, so the real number replaces the guess)
-  useEffect(() => setBump({}), [lb.data]);
+  useEffect(() => setBump({}), [lbData]);
 
   useEffect(() => {
     if (!sel || !userVoteKey) {
@@ -372,7 +398,7 @@ export default function Leaderboard() {
       await rememberVote(pId);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       say("success", "Vote counted", `You backed ${who}. Rankings update live.`);
-      lb.refresh();
+      refreshBoard();
     } catch (e: any) {
       const m = e?.message || "Could not submit your vote right now.";
       if (/already voted/i.test(m)) {
@@ -423,7 +449,7 @@ export default function Leaderboard() {
   const siteOrigin = /^https?:\/\/[^/]+/i.exec(shareData?.page_url || "")?.[0] || "https://upgradetalentsindia.in";
   const compTitle = selectedComp?.title || selectedComp?.name || "this competition";
   const shareMessage = (() => {
-    const overall: Row[] = ((lb.data as any)?.leaderboard as Row[]) || rawRows;
+    const overall: Row[] = ((lbData as any)?.leaderboard as Row[]) || rawRows;
     const podium = overall
       .slice(0, 3)
       .map((r, i) => `${["🥇", "🥈", "🥉"][i]} ${r.name || "Contestant"}`)
@@ -436,7 +462,7 @@ export default function Leaderboard() {
 
   const roundInfo = isMultiRound ? rounds.find((r) => r.round_number === activeRound) : undefined;
   const roundUpcoming = String(roundInfo?.status || "").toUpperCase() === "UPCOMING";
-  const advancingCount = (lb.data as any)?.advancing_count ?? roundInfo?.advancing_count ?? null;
+  const advancingCount = (lbData as any)?.advancing_count ?? roundInfo?.advancing_count ?? null;
 
   /* A round that hasn't started has no scores yet — show who qualified into it. */
   const qualified = useAsync(
@@ -453,6 +479,28 @@ export default function Leaderboard() {
     selectedComp?.audience_voting_enabled !== false &&
     String(selectedComp?.voting_status ?? "OPEN").toUpperCase() === "OPEN";
   const canVote = votingOpen && (!isMultiRound || activeRound === currentRound);
+
+  /* What SCORE and VOTES mean, straight off the ranking service's own fields:
+     final_score is normalised to 100 and weighted; audience_votes is the sum of
+     each vote's weight (an app vote can carry more than a web vote). */
+  const scoreNote = useMemo(() => {
+    const first: any = rawRows[0];
+    const mode = String((lbData as any)?.ranking_mode || first?.ranking_mode || "").toUpperCase();
+    const pct = (w: any) => {
+      const n = Number(w) || 0;
+      return Math.round(n <= 1 ? n * 100 : n);
+    };
+    const votes = "VOTES are weighted vote points.";
+    if (mode === "COMBINED_AUDIENCE_AND_JUDGES") {
+      let a = pct(first?.audience_weight);
+      let j = pct(first?.judge_weight);
+      if (!a && !j) a = j = 50;
+      return `SCORE out of 100 — judges ${j}% + audience ${a}%. ${votes}`;
+    }
+    if (mode === "AUDIENCE_VOTING_ONLY") return `SCORE comes from audience votes. ${votes}`;
+    if (mode === "JUDGES_SCORE_ONLY") return "SCORE is the judges' marks — votes don't change the ranking.";
+    return null;
+  }, [lbData, rawRows]);
 
   const top1 = filteredRows[0] || null;
   const top2 = filteredRows[1] || null;
@@ -550,8 +598,8 @@ export default function Leaderboard() {
         contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl
-            refreshing={lb.refreshing}
-            onRefresh={lb.refresh}
+            refreshing={refreshing}
+            onRefresh={refreshBoard}
             tintColor="#FF385C"
             colors={["#FF385C"]}
           />
@@ -617,7 +665,7 @@ export default function Leaderboard() {
                     accessibilityState={{ selected: on }}
                     onPress={() => {
                       Haptics.selectionAsync().catch(() => {});
-                      setActiveRound(rNum);
+                      pickRound(rNum);
                     }}
                     style={({ pressed }) => [
                       styles.segItem,
@@ -685,21 +733,44 @@ export default function Leaderboard() {
 
         {/* Search Bar */}
         <View style={styles.searchBarWrap}>
-          <View style={styles.searchBar}>
-            <Search size={15} color="#9EA3B8" />
+          <View style={[styles.searchBar, searchFocused && styles.searchBarOn]}>
+            <View style={[styles.searchIcon, searchFocused && styles.searchIconOn]}>
+              <Search size={16} color={searchFocused ? "#FF385C" : "#9EA3B8"} strokeWidth={2.4} />
+            </View>
             <TextInput
-              placeholder="Search contestant or ID..."
-              placeholderTextColor="#64748B"
+              placeholder="Search name, email or ID"
+              placeholderTextColor="#6B7186"
               value={search}
               onChangeText={setSearch}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
               style={styles.searchInput}
+              selectionColor="#FF385C"
+              cursorColor="#FF385C"
               returnKeyType="search"
+              autoCorrect={false}
+              autoCapitalize="none"
+              clearButtonMode="never"
+              accessibilityLabel="Search contestants"
             />
-            {search.length > 0 && (
-              <Pressable onPress={() => setSearch("")} hitSlop={8}>
-                <X size={15} color="#9EA3B8" />
-              </Pressable>
-            )}
+            {search.trim().length > 0 ? (
+              <>
+                <View style={styles.searchCount}>
+                  <Txt size={11} font="sansBold" style={{ color: filteredRows.length ? "#C5CAD6" : "#FF385C" }}>
+                    {filteredRows.length ? `${filteredRows.length} found` : "No match"}
+                  </Txt>
+                </View>
+                <Pressable
+                  onPress={() => setSearch("")}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear search"
+                  style={({ pressed }) => [styles.searchClear, { opacity: pressed ? 0.7 : 1 }]}
+                >
+                  <X size={13} color="#FFFFFF" strokeWidth={2.6} />
+                </Pressable>
+              </>
+            ) : null}
           </View>
         </View>
 
@@ -741,7 +812,7 @@ export default function Leaderboard() {
         )}
 
         {/* Loading Skeletons */}
-        {lb.loading ? (
+        {lbLoading ? (
           <View style={{ gap: 14, marginTop: 10, paddingHorizontal: 16 }}>
             <Skeleton h={220} radius={22} />
             <Skeleton h={300} radius={22} />
@@ -755,7 +826,7 @@ export default function Leaderboard() {
             )}
           />
         ) : filteredRows.length > 0 ? (
-          <View>
+          <View style={{ opacity: lbSwitching ? 0.45 : 1 }}>
             {/* ══════════════════════════════════════════════════════════
                 TOP 3 3D ISOMETRIC GLASS PEDESTAL PODIUM
                ══════════════════════════════════════════════════════════ */}
@@ -767,7 +838,7 @@ export default function Leaderboard() {
                 first={toEntry(top1)}
                 second={toEntry(top2)}
                 third={toEntry(top3)}
-                replayKey={`${sel}|${activeRound}|${activeCategory}`}
+                replayKey={`${sel}|${(lbData as any)?.round_number ?? ""}|${activeCategory}`}
               />
             </View>
 
@@ -824,6 +895,15 @@ export default function Leaderboard() {
                 },
               ]}
             >
+              {scoreNote ? (
+                <View style={styles.scoreNote}>
+                  <Txt size={11.5} lh={16} style={{ color: "#8A90A6" }}>
+                    <Txt size={11.5} font="sansBold" style={{ color: "#C5CAD6" }}>How it's scored · </Txt>
+                    {scoreNote}
+                  </Txt>
+                </View>
+              ) : null}
+
               {/* Table Column Header: RANK | USER | SCORE | VOTES */}
               <View style={styles.tableHeader}>
                 <View style={{ width: 44, alignItems: "center" }}>
@@ -1274,24 +1354,61 @@ const styles = StyleSheet.create({
   },
   searchBarWrap: {
     paddingHorizontal: 16,
-    marginVertical: 6,
+    marginTop: 8,
+    marginBottom: 8,
   },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
-    height: 38,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    height: 50,
+    borderRadius: 16,
+    paddingLeft: 6,
+    paddingRight: 8,
+    gap: 10,
+    backgroundColor: "#14161E",
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.08)",
-    gap: 8,
   },
+  /* focus: the accent ring + a soft glow, nothing louder */
+  searchBarOn: {
+    borderColor: "rgba(255, 56, 92, 0.55)",
+    backgroundColor: "#181A23",
+    shadowColor: "#FF385C",
+    shadowOpacity: 0.22,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 4,
+  },
+  searchIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
+  },
+  searchIconOn: { backgroundColor: "rgba(255, 56, 92, 0.14)" },
   searchInput: {
     flex: 1,
-    fontSize: 12.5,
+    fontSize: 14.5,
+    fontFamily: "Inter_500Medium",
     color: "#FFFFFF",
     paddingVertical: 0,
+  },
+  searchCount: {
+    height: 24,
+    paddingHorizontal: 8,
+    borderRadius: 999,
+    justifyContent: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
+  },
+  searchClear: {
+    width: 26,
+    height: 26,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.14)",
   },
   myStandingCard: {
     marginHorizontal: 16,
@@ -1438,6 +1555,15 @@ const styles = StyleSheet.create({
     backgroundColor: "#161724",
     alignItems: "center",
     justifyContent: "center",
+  },
+  scoreNote: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.035)",
   },
   zoneChip: {
     flexDirection: "row",

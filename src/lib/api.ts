@@ -629,7 +629,8 @@ export const publicApi = {
         query: category ? { category } : undefined,
       })
     ),
-  verifyCertificate: (token: string) => apiFetch<any>(`/api/public/certificates/verify/${encodeURIComponent(token)}`),
+  verifyCertificate: (token: string) =>
+    apiFetch<CertificateVerification>(`/api/public/certificates/verify/${encodeURIComponent(token)}`),
 };
 
 /* ─────────────── COMPETE (register / submit / vote) ─────────────── */
@@ -759,6 +760,116 @@ export const publicCompetitionsApi = {
 };
 
 /** Homepage featured tiles — the admin-curated promo grid. */
+/* ─────────────── LIVE (public, no auth) ───────────────
+   `/api/v1/live/*`, mirrored at `/api/public/live/*`. Live events never carry
+   the private `stream_url` — only `public_url`. */
+
+export type LivePhase = "LIVE" | "VOTING" | "JUDGING" | "UPCOMING" | "ENDED" | "UNKNOWN" | string;
+
+/** A broadcast row from `/live/events` (the CMS LiveEvent, private fields stripped). */
+export type LiveBroadcast = LiveEventItem & {
+  scheduled_start?: string;
+  scheduled_end?: string;
+};
+
+/** A running competition from `/live/competitions`, with the server's live flags. */
+export type LiveCompetition = {
+  _id: string;
+  title?: string;
+  name?: string;
+  description?: string;
+  category?: string;
+  image_url?: string;
+  banner_url?: string;
+  prize?: string;
+  venue?: string;
+  start_date?: string;
+  end_date?: string;
+  submission_deadline?: string;
+  voting_status?: string;
+  judging_status?: string;
+  audience_voting_enabled?: boolean;
+  judge_scoring_enabled?: boolean;
+  is_offline?: boolean;
+  event_mode?: string;
+  current_round?: number;
+  live_phase?: LivePhase;
+  registration_open?: boolean;
+  can_register?: boolean;
+  registration_status?: string;
+  registration_reason?: string;
+  submissions_open?: boolean;
+  [k: string]: any;
+};
+
+export type LiveCompetitionDetail = LiveCompetition & {
+  live_stats?: { total_registrations?: number; total_submissions?: number; total_audience_votes?: number };
+  live_stage?: { stage_status?: string; current_performer?: StagePerformer | null; [k: string]: any };
+};
+
+export type LiveFeed = {
+  timestamp?: string;
+  live_events: LiveBroadcast[];
+  live_events_count: number;
+  live_competitions: LiveCompetition[];
+  live_competitions_count: number;
+  total_live: number;
+};
+
+export type LiveSummary = {
+  timestamp?: string;
+  live_events_count: number;
+  live_competitions_count: number;
+  voting_open_count: number;
+  total_live: number;
+};
+
+export type Paged<T> = { items: T[]; count: number; total: number; skip: number; limit: number };
+
+export type LiveCompetitionFilters = {
+  category?: string;
+  voting_open?: boolean;
+  judging_open?: boolean;
+  skip?: number;
+  limit?: number;
+};
+
+/** v1 first, the public mirror if v1 isn't reachable. */
+const live = <T,>(path: string, query?: Record<string, any>) =>
+  apiFetch<T>(`/api/v1/live${path}`, { query }).catch(() => apiFetch<T>(`/api/public/live${path}`, { query }));
+
+export const liveApi = {
+  /** Everything on air right now — broadcasts + running competitions. */
+  feed: () => live<LiveFeed>("/feed"),
+  /** Light counts for badges ("3 live now"). */
+  summary: () => live<LiveSummary>("/summary"),
+  events: (p: { skip?: number; limit?: number } = {}) => live<Paged<LiveBroadcast>>("/events", p),
+  event: (id: string) => live<LiveBroadcast>(`/events/${encodeURIComponent(id)}`),
+  competitions: (f: LiveCompetitionFilters = {}) => live<Paged<LiveCompetition>>("/competitions", f),
+  /** 404s when the competition hasn't started, or ended with results out. */
+  competition: (id: string) => live<LiveCompetitionDetail>(`/competitions/${encodeURIComponent(id)}`),
+  stage: (id: string) =>
+    live<LiveStageData>(`/competitions/${encodeURIComponent(id)}/live-stage`).catch(() =>
+      live<LiveStageData>(`/competitions/${encodeURIComponent(id)}/current-performer`)
+    ),
+};
+
+/** `GET /api/public/certificates/verify/{token}` */
+export type CertificateVerification = {
+  verification_status: "VALID" | "REVOKED" | "NOT_FOUND";
+  status?: string;
+  message?: string;
+  certificate_id?: string;
+  certificate_type?: string;
+  participant_name?: string;
+  activity_title?: string;
+  activity_type?: string;
+  rank?: number | string;
+  award_title?: string;
+  issue_date?: string;
+  revocation_reason?: string;
+};
+
 export const featuredApi = {
   tiles: () => apiFetch<any[]>("/api/v1/featured-tiles").catch(() => apiFetch<any[]>("/api/public/featured-tiles")),
 };

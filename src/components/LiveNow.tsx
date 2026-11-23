@@ -1,7 +1,7 @@
 import React, { useEffect, useReducer, useRef } from "react";
 import { View, Pressable, ScrollView, Animated, Easing } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { Play, Radio, Clock, CalendarClock } from "lucide-react-native";
+import { Play, Radio, Clock } from "lucide-react-native";
 import { Txt, Glow } from "@/components/ui";
 import { AppImage } from "@/components/AppImage";
 import { Scanlines, WaveBand } from "@/components/patterns";
@@ -63,12 +63,13 @@ function LiveCard({ ev, onPress, red, state }: { ev: LiveEventItem; onPress: () 
     return () => clearInterval(id);
   }, [live]);
   const soon = live ? null : countdownText(ev.start_time);
-  const AMBER = "#ffb02e";
-  const tone = live ? red : AMBER;
+  // not on air yet → quiet neutral, no warning colour
+  const SOFT = "rgba(255,255,255,0.78)";
+  const tone = live ? red : SOFT;
 
   return (
     <Pressable onPress={onPress}>
-      <View style={{ width: 272, height: 192, borderRadius: 22, overflow: "hidden", backgroundColor: "#000", shadowColor: tone, shadowOpacity: live ? 0.55 : 0.3, shadowRadius: 20, shadowOffset: { width: 0, height: 10 }, elevation: 12 }}>
+      <View style={{ width: 272, height: 192, borderRadius: 22, overflow: "hidden", backgroundColor: "#000", shadowColor: live ? red : "#000", shadowOpacity: live ? 0.55 : 0.4, shadowRadius: 20, shadowOffset: { width: 0, height: 10 }, elevation: 12 }}>
         <AppImage uri={ev.image_url} seed={ev._id} style={{ width: "100%", height: "100%" }} />
         <LinearGradient colors={["rgba(0,0,0,0.35)", "transparent", "rgba(0,0,0,0.85)"] as any} locations={[0, 0.4, 1]} style={{ position: "absolute", width: "100%", height: "100%" }} />
 
@@ -76,7 +77,7 @@ function LiveCard({ ev, onPress, red, state }: { ev: LiveEventItem; onPress: () 
         {live ? (
           <Animated.View pointerEvents="none" style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, borderRadius: 22, borderWidth: 2, borderColor: red, opacity: border.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] }) }} />
         ) : (
-          <View pointerEvents="none" style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, borderRadius: 22, borderWidth: 1.5, borderColor: AMBER + "80" }} />
+          <View pointerEvents="none" style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, borderRadius: 22, borderWidth: 1, borderColor: "rgba(255,255,255,0.14)" }} />
         )}
 
         {/* status pill — LIVE, or the clock until it starts */}
@@ -86,20 +87,15 @@ function LiveCard({ ev, onPress, red, state }: { ev: LiveEventItem; onPress: () 
               <View style={{ width: 6, height: 6, borderRadius: 999, backgroundColor: "#fff" }} />
               <Txt size={10.5} font="sansBold" style={{ color: "#fff", letterSpacing: 1 }}>LIVE</Txt>
             </View>
-          ) : (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: AMBER, borderRadius: 999, paddingHorizontal: 9, height: 24 }}>
-              <CalendarClock size={11} color="#2a1a00" />
-              <Txt size={10} font="sansBold" style={{ color: "#2a1a00", letterSpacing: 1 }}>SCHEDULED</Txt>
+          ) : soon ? (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "rgba(0,0,0,0.55)", borderWidth: 1, borderColor: "rgba(255,255,255,0.16)", borderRadius: 999, paddingHorizontal: 9, height: 24 }}>
+              <Clock size={11} color="#fff" />
+              <Txt size={10.5} font="sansBold" style={{ color: "#fff", letterSpacing: 0.4, fontVariant: ["tabular-nums"] }}>{soon}</Txt>
             </View>
-          )}
+          ) : <View />}
           {live ? (
             <View style={{ backgroundColor: "rgba(0,0,0,0.45)", borderRadius: 999, paddingHorizontal: 9, height: 24, justifyContent: "center" }}>
               <Equalizer color={red} />
-            </View>
-          ) : soon ? (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 999, paddingHorizontal: 9, height: 24 }}>
-              <Clock size={11} color={AMBER} />
-              <Txt size={10.5} font="monoMed" style={{ color: AMBER, letterSpacing: 0.5 }}>{soon}</Txt>
             </View>
           ) : null}
         </View>
@@ -135,7 +131,7 @@ export function LiveNow({ events, onOpen }: { events: LiveEventItem[]; onOpen: (
   const dot = useLoop(700);
 
   /* Anything already finished is dropped, and a stream that has not started
-     is shown as scheduled rather than pretending to be on air. */
+     shows its countdown rather than pretending to be on air. */
   const rows = events
     .map((ev) => ({ ev, state: airState(ev.start_time, ev.end_time) }))
     .filter((r) => r.state !== "ended");
@@ -155,7 +151,7 @@ export function LiveNow({ events, onOpen }: { events: LiveEventItem[]; onOpen: (
             width: 9,
             height: 9,
             borderRadius: 999,
-            backgroundColor: anyLive ? RED : "#ffb02e",
+            backgroundColor: anyLive ? RED : "rgba(255,255,255,0.7)",
             opacity: dot.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }),
           }}
         />
@@ -167,12 +163,7 @@ export function LiveNow({ events, onOpen }: { events: LiveEventItem[]; onOpen: (
             <Radio size={10} color="#fff" />
             <Txt size={10} font="sansBold" style={{ color: "#fff", letterSpacing: 0.8 }}>{onAir.length} ON AIR</Txt>
           </View>
-        ) : (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "rgba(255,176,46,0.14)", borderWidth: 1, borderColor: "rgba(255,176,46,0.4)", borderRadius: 999, paddingHorizontal: 9, height: 22 }}>
-            <CalendarClock size={10} color="#ffb02e" />
-            <Txt size={10} font="sansBold" style={{ color: "#ffb02e", letterSpacing: 0.8 }}>{rows.length} SCHEDULED</Txt>
-          </View>
-        )}
+        ) : null}
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 14 }}>
         {rows.map(({ ev, state }) => <LiveCard key={ev._id} ev={ev} red={RED} state={state} onPress={() => onOpen(ev)} />)}

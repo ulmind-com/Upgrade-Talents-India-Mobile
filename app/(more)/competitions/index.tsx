@@ -121,7 +121,12 @@ export default function Competitions() {
       ) : fRows.length ? (
         <View>
           {/* ══ 1. polls open right now — straight to the top ══ */}
-          <LiveVotingBand rows={liveCards} onOpen={open} />
+          {/* card → the competition; "Cast your vote" → the leaderboard, where voting happens */}
+          <LiveVotingBand
+            rows={liveCards}
+            onOpen={open}
+            onVote={(id) => router.push({ pathname: "/(more)/leaderboard", params: { competition: id } })}
+          />
 
           {/* ══ 2. still taking entries ══ */}
           {shelf.open.length ? (
