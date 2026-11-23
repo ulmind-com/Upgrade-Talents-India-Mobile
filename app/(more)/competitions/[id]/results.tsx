@@ -3,9 +3,9 @@ import { View, Pressable, TextInput, ScrollView, StyleSheet, Dimensions } from "
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import {
-  Trophy, Vote, Hourglass, ShieldCheck, Play, Pause, Award, Search, Heart, Share2,
+  Trophy, Vote, Hourglass, ShieldCheck, Play, Pause, Award, Search, Heart, Share2, MessageSquareQuote,
 } from "lucide-react-native";
-import { useAudioPlayer } from "expo-audio";
+import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { SubScreen } from "@/components/SubScreen";
 import { useTheme } from "@/theme/ThemeProvider";
 import { useSession } from "@/context/Session";
@@ -72,14 +72,16 @@ export default function CompetitionResults() {
   const rows: Row[] = useMemo(() => {
     let list = allRows;
     if (selectedCategory !== "ALL") {
-      list = list.filter((r) => r.category === selectedCategory);
+      // the backend ranks each division on its own — use that when it's there
+      const byCat = snap.category_leaderboards?.[selectedCategory];
+      list = Array.isArray(byCat) && byCat.length ? byCat : list.filter((r) => r.category === selectedCategory);
     }
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter((r) => rowName(r).toLowerCase().includes(q) || String(r.user_email || r.email || "").toLowerCase().includes(q));
     }
     return list;
-  }, [allRows, selectedCategory, search]);
+  }, [allRows, selectedCategory, search, snap.category_leaderboards]);
 
   const published = snap.is_published !== false && allRows.length > 0;
   const title = comp.data?.title || comp.data?.name || "Competition";
@@ -348,33 +350,75 @@ export default function CompetitionResults() {
   );
 }
 
-/** One judge's feedback — text, and a play button when there's an audio note. */
+const mmss = (sec: number) => {
+  const t = Math.max(0, Math.floor(sec || 0));
+  return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
+};
+
+/**
+ * One judge's feedback. The backend stores it as `text_feedback` +
+ * `audio_feedback_url`, signed with `judge_name` and `submitted_at`.
+ */
 function FeedbackCard({ fb }: { fb: any }) {
-  const { c } = useTheme();
+  const text = fb.text_feedback || fb.feedback_text || fb.feedback || "";
+  const judge = fb.judge_name || "Judge";
   const audioUrl = assetUrl(fb.audio_feedback_url);
   const player = useAudioPlayer(audioUrl ? { uri: audioUrl } : null);
-  const [playing, setPlaying] = useState(false);
+  const status = useAudioPlayerStatus(player);
+  const playing = !!status?.playing;
+  const dur = status?.duration || 0;
+  const pos = status?.currentTime || 0;
+  const ended = dur > 0 && pos >= dur - 0.25;
 
   const toggle = () => {
     if (!audioUrl) return;
     try {
-      if (playing) { player.pause(); setPlaying(false); }
-      else { player.seekTo(0); player.play(); setPlaying(true); }
+      if (playing) player.pause();
+      else {
+        if (ended) player.seekTo(0);
+        player.play();
+      }
     } catch {}
   };
 
   return (
-    <View style={{ borderRadius: 16, borderWidth: 1, borderColor: c.border, backgroundColor: c.surface, padding: 14, gap: 10 }}>
-      {fb.feedback_text ? (
-        <Txt size={13.5} lh={20} style={{ fontStyle: "italic" }}>“{fb.feedback_text}”</Txt>
+    <View style={sx.fbCard}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+        <Avatar name={judge} size={36} />
+        <View style={{ flex: 1 }}>
+          <Txt size={13.5} font="sansBold" style={{ color: "#FFFFFF" }}>{judge}</Txt>
+          <Txt size={11} style={{ color: "#8A90A6" }}>
+            Judge{fb.submitted_at ? ` · ${formatDateTime(fb.submitted_at)}` : ""}
+          </Txt>
+        </View>
+        <MessageSquareQuote size={18} color="rgba(255,255,255,0.25)" />
+      </View>
+
+      {text ? (
+        <Txt size={14} lh={21} style={{ color: "#E2E8F0", marginTop: 12 }}>{text}</Txt>
       ) : null}
+
       {audioUrl ? (
-        <Pressable onPress={toggle} style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1, flexDirection: "row", alignItems: "center", gap: 10, alignSelf: "flex-start", borderRadius: 999, backgroundColor: PINK + "18", paddingHorizontal: 13, paddingVertical: 8 })}>
-          {playing ? <Pause size={15} color={PINK} /> : <Play size={15} color={PINK} fill={PINK} />}
-          <Txt size={12.5} font="sansBold" style={{ color: PINK }}>{playing ? "Playing voice note" : "Play voice note"}</Txt>
-        </Pressable>
+        <View style={sx.voice}>
+          <Pressable
+            onPress={toggle}
+            accessibilityRole="button"
+            accessibilityLabel={playing ? "Pause voice note" : "Play voice note"}
+            style={({ pressed }) => [sx.playBtn, { transform: [{ scale: pressed ? 0.92 : 1 }] }]}
+          >
+            {playing ? <Pause size={16} color="#FFFFFF" fill="#FFFFFF" /> : <Play size={16} color="#FFFFFF" fill="#FFFFFF" style={{ marginLeft: 2 }} />}
+          </Pressable>
+          <View style={{ flex: 1, gap: 6 }}>
+            <Txt size={12} font="sansSemi" style={{ color: "#FFFFFF" }}>Voice note</Txt>
+            <View style={sx.voiceTrack}>
+              <View style={[sx.voiceFill, { width: `${dur ? Math.min(100, (pos / dur) * 100) : 0}%` }]} />
+            </View>
+          </View>
+          <Txt size={11.5} font="sansSemi" style={{ color: "#8A90A6", minWidth: 64, textAlign: "right" }}>
+            {dur ? `${mmss(pos)} / ${mmss(dur)}` : "—"}
+          </Txt>
+        </View>
       ) : null}
-      {fb.judge_email ? <Txt size={11} font="mono" tone="subtle">— {fb.judge_email}</Txt> : null}
     </View>
   );
 }
@@ -482,6 +526,34 @@ function StandingRow({ row, rank }: { row: Row; rank: number }) {
 }
 
 const sx = StyleSheet.create({
+  fbCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "#10121B",
+    padding: 16,
+  },
+  voice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginTop: 12,
+    padding: 10,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,56,92,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,56,92,0.2)",
+  },
+  playBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 999,
+    backgroundColor: PINK,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  voiceTrack: { height: 4, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.12)", overflow: "hidden" },
+  voiceFill: { height: "100%", backgroundColor: PINK, borderRadius: 999 },
   shareBtn: {
     width: 42,
     height: 42,

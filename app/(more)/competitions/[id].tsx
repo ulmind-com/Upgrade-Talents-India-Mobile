@@ -20,6 +20,7 @@ import { usePopup } from "@/components/Popup";
 import { useCheckout } from "@/lib/useCheckout";
 import { AppImage, PosterFill } from "@/components/AppImage";
 import { LiveStage } from "@/components/LiveStage";
+import { RoundsJourney } from "@/components/RoundsJourney";
 import { ShareSheet } from "@/components/ShareSheet";
 import { VerifiedTick } from "@/components/VerifiedBadge";
 import { FadeInUp } from "@/components/FadeInUp";
@@ -68,6 +69,8 @@ export default function CompetitionDetail() {
   const [shareData, setShareData] = useState<any>(null);
   const popup = usePopup();
   const [votes, setVotes] = useState<Record<string, number>>({});
+  // optimistic +1s only bridge the gap until fresh standings arrive (app votes are weighted server-side)
+  useEffect(() => setVotes({}), [lbQ.data]);
   const [voted, setVoted] = useState<Set<string>>(new Set());
 
   /* remember registrations locally — the API has no "my registrations" read */
@@ -229,9 +232,10 @@ export default function CompetitionDetail() {
     setVotes((v) => ({ ...v, [pid]: (v[pid] || 0) + 1 }));
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     try {
-      await competeApi.vote(String(id), pid);
+      await competeApi.vote(String(id), pid, comp?.current_round ? { round_number: Number(comp.current_round) } : {});
       await rememberVote(pid);
       flash("success", "Your vote is counted.", "Voted");
+      lbQ.refresh();
     } catch (e) {
       const m = e instanceof ApiError ? e.message : "Vote failed.";
       if (/already voted/i.test(m)) {
@@ -572,6 +576,7 @@ export default function CompetitionDetail() {
 
       {/* ── Live on-stage, while the competition is running ── */}
       <LiveStage compId={String(id)} live={comp.event_status === "live" || String(comp.result_status || "").toUpperCase() === "LIVE"} />
+      <RoundsJourney compId={String(id)} />
 
       {/* ── Official results, once declared ── */}
       {comp.results_published === true || String(comp.result_status || "").toUpperCase() === "FINAL" ? (

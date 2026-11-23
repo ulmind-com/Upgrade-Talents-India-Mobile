@@ -410,6 +410,118 @@ export type MyTicket = {
 /* ═══════════════════════════════════════════════════════════
    USER / PUBLIC API  (frontend)
    ═══════════════════════════════════════════════════════════ */
+/** Body extras for `POST /competitions/{id}/vote` (VoteReq). */
+export type VoteOpts = {
+  source?: "MOBILE_APP" | "WEBSITE";
+  round_number?: number;
+  is_paid_pack?: boolean;
+  payment_reference?: string;
+};
+
+/** One configured round, as `/rounds` normalises it. */
+export type RoundInfo = {
+  round_number: number;
+  name?: string;
+  description?: string | null;
+  status?: "ACTIVE" | "COMPLETED" | "UPCOMING" | string;
+  advancing_count?: number | null;
+  is_final_round?: boolean;
+  start_date?: string | null;
+  end_date?: string | null;
+  qualified_contestant_count?: number;
+};
+
+export type RoundsData = {
+  competition_id?: string;
+  competition_title?: string;
+  current_round?: number;
+  total_rounds?: number;
+  rounds?: RoundInfo[];
+};
+
+export type RoundContestantsData = {
+  competition_id?: string;
+  competition_title?: string;
+  round_number?: number;
+  round_name?: string;
+  total_contestants?: number;
+  contestants?: any[];
+};
+
+export type LeaderboardData = {
+  ranking_mode?: string;
+  is_published?: boolean;
+  score_visible_for_public?: boolean;
+  category?: string | null;
+  categories?: string[];
+  leaderboard?: any[];
+  category_leaderboards?: Record<string, any[]>;
+  // present when the competition runs multiple rounds
+  round_number?: number;
+  round_name?: string;
+  round_status?: string;
+  advancing_count?: number | null;
+  is_final_round?: boolean;
+  rounds?: RoundInfo[];
+};
+
+/** A contestant in a live-stage lineup / final lineup row. */
+export type StagePerformer = {
+  order?: number;
+  stage_order?: number;
+  venue_entry_number?: number | null;
+  registration_id?: string;
+  registration_reference?: string;
+  participant_name?: string;
+  user_name?: string;
+  user_email?: string;
+  user_photo?: string;
+  avatar?: string;
+  category?: string;
+  division?: string;
+  entry_title?: string;
+  stage_status?: "NOT_STARTED" | "ON_STAGE" | "COMPLETED" | string;
+  is_current_performer?: boolean;
+  is_present?: boolean;
+  attendance_status?: "PRESENT" | "WAITING_CHECKIN" | string;
+  attended_at?: string;
+  started_at?: string;
+  completed_at?: string;
+  is_verified?: boolean;
+};
+
+/** `GET /competitions/{id}/live-stage` (alias `/current-performer`). */
+export type LiveStageData = {
+  competition_id?: string;
+  competition_title?: string;
+  is_offline?: boolean;
+  venue?: string;
+  stage_status?: string;
+  has_active_performer?: boolean;
+  current_performer?: StagePerformer | null;
+  previous_performer?: StagePerformer | null;
+  total_participants?: number;
+  all_registered_count?: number;
+  present_count?: number;
+  completed_count?: number;
+  final_present_lineup?: StagePerformer[];
+  categories?: string[];
+  lineup?: StagePerformer[];
+  updated_at?: string;
+};
+
+/** `GET /competitions/{id}/final-participants` (alias `/attendance-list`). */
+export type FinalLineup = {
+  competition_id?: string;
+  competition_title?: string;
+  is_offline?: boolean;
+  venue?: string;
+  total_registered?: number;
+  present_count?: number;
+  category?: string | null;
+  final_participants?: StagePerformer[];
+};
+
 /** `GET /share/{event|competition}/{id}?json=true` — ShareLinkResponse. */
 export type ShareLinkData = {
   id?: string;
@@ -478,15 +590,20 @@ export const publicApi = {
   importantLinks: () => apiFetch<any[]>("/api/v1/important-links").catch(() => apiFetch<any[]>("/api/public/important-links")),
   competitions: (p: { skip?: number; limit?: number; search?: string; category?: string } = {}) =>
     apiFetch<any[]>("/api/activities/competitions", { query: { limit: 50, ...p } }),
-  leaderboard: (id: string) =>
-    apiFetch<{ ranking_mode?: string; leaderboard?: any[]; categories?: string[]; category_leaderboards?: Record<string, any[]> }>(
-      `/api/v1/competitions/${id}/leaderboard`
-    ).catch(() =>
-      apiFetch<any>(`/api/public/competitions/${id}/leaderboard`)
+  /** Real-time provisional standings; optionally one division and/or one round. */
+  leaderboard: (id: string, opts: { category?: string; round_number?: number } = {}) =>
+    apiFetch<LeaderboardData>(`/api/v1/competitions/${id}/leaderboard`, { query: opts }).catch(() =>
+      apiFetch<LeaderboardData>(`/api/public/competitions/${id}/leaderboard`, { query: opts })
     ),
+  /** Round progression (Prelims → Semis → Finals) with status + qualified counts. */
   rounds: (id: string) =>
-    apiFetch<any>(`/api/v1/competitions/${id}/rounds`).catch(() =>
-      apiFetch<any>(`/api/public/competitions/${id}/rounds`)
+    apiFetch<RoundsData>(`/api/v1/competitions/${id}/rounds`).catch(() =>
+      apiFetch<RoundsData>(`/api/public/competitions/${id}/rounds`)
+    ),
+  /** Contestants qualified into a round (round 1 = everyone registered). */
+  roundContestants: (id: string, roundNumber: number, category?: string) =>
+    apiFetch<RoundContestantsData>(`/api/v1/competitions/${id}/rounds/${roundNumber}/contestants`, { query: { category } }).catch(() =>
+      apiFetch<RoundContestantsData>(`/api/public/competitions/${id}/rounds/${roundNumber}/contestants`, { query: { category } })
     ),
   roundLeaderboard: (id: string, roundNumber: number, category?: string) =>
     apiFetch<{
@@ -498,7 +615,9 @@ export const publicApi = {
       advancing_count?: number;
       current_active_round?: number;
       total_rounds?: number;
-      rounds?: any[];
+      total_participants?: number;
+      is_published?: boolean;
+      rounds?: RoundInfo[];
       category?: string;
       categories?: string[];
       leaderboard?: any[];
@@ -525,8 +644,17 @@ export const competeApi = {
     fd.append("field_names", fieldNames.join(", "));
     return apiFetch<any>(`/api/v1/competitions/${id}/submissions`, { method: "POST", auth: "user", form: fd });
   },
-  vote: (id: string, participant_id: string) =>
-    apiFetch<any>(`/api/v1/competitions/${id}/vote`, { method: "POST", auth: "user", body: { participant_id, source: "APP" } }),
+  /**
+   * Audience vote. `source: "MOBILE_APP"` is what the backend weights as an app
+   * vote (anything else counts as a website vote). `round_number` defaults to
+   * the active round server-side.
+   */
+  vote: (id: string, participant_id: string, opts: VoteOpts = {}) =>
+    apiFetch<{ message?: string; round_number?: number }>(`/api/v1/competitions/${id}/vote`, {
+      method: "POST",
+      auth: "user",
+      body: { participant_id, source: "MOBILE_APP", is_paid_pack: false, ...opts },
+    }),
 
   /** Single competition, including whether this member is already entered. */
   detail: (id: string) => apiFetch<any>(`/api/v1/competitions/${id}`, { auth: "user" }),
@@ -535,17 +663,17 @@ export const competeApi = {
   myRegistration: (id: string) => apiFetch<any>(`/api/v1/competitions/${id}/my-registration`, { auth: "user" }),
 
   /** The live on-stage state (current performer, standings) for a running competition. */
-  liveStage: (id: string) => apiFetch<any>(`/api/v1/competitions/${id}/live-stage`, { auth: "user" }),
+  liveStage: (id: string) => apiFetch<LiveStageData>(`/api/v1/competitions/${id}/live-stage`, { auth: "user" }),
 
   /** Official, published results — the authoritative v1 view, public fallback. */
-  results: (id: string) =>
-    apiFetch<any>(`/api/v1/competitions/${id}/results`, { auth: "user" }).catch(() =>
-      apiFetch<any>(`/api/public/competitions/${id}/results`)
+  results: (id: string, category?: string) =>
+    apiFetch<any>(`/api/v1/competitions/${id}/results`, { auth: "user", query: { category } }).catch(() =>
+      apiFetch<any>(`/api/public/competitions/${id}/results`, { query: { category } })
     ),
   /** Standings — v1 when signed in, public otherwise. */
-  leaderboard: (id: string) =>
-    apiFetch<any>(`/api/v1/competitions/${id}/leaderboard`, { auth: "user" }).catch(() =>
-      apiFetch<any>(`/api/public/competitions/${id}/leaderboard`)
+  leaderboard: (id: string, opts: { category?: string; round_number?: number } = {}) =>
+    apiFetch<LeaderboardData>(`/api/v1/competitions/${id}/leaderboard`, { auth: "user", query: opts }).catch(() =>
+      apiFetch<LeaderboardData>(`/api/public/competitions/${id}/leaderboard`, { query: opts })
     ),
 
   /** Paid entries settle through Razorpay like everything else. */
@@ -595,19 +723,39 @@ export const competeApi = {
 /** Public competition feeds — readable without signing in. */
 export const publicCompetitionsApi = {
   detail: (id: string) => apiFetch<any>(`/api/activities/competitions/${id}`),
-  leaderboard: (id: string) => apiFetch<any>(`/api/public/competitions/${id}/leaderboard`),
-  results: (id: string) => apiFetch<any>(`/api/public/competitions/${id}/results`),
+  leaderboard: (id: string, opts: { category?: string; round_number?: number } = {}) =>
+    apiFetch<LeaderboardData>(`/api/public/competitions/${id}/leaderboard`, { query: opts }),
+  rounds: (id: string) => apiFetch<RoundsData>(`/api/public/competitions/${id}/rounds`),
+  roundLeaderboard: (id: string, roundNumber: number, category?: string) =>
+    apiFetch<any>(`/api/public/competitions/${id}/rounds/${roundNumber}/leaderboard`, { query: { category } }),
+  roundContestants: (id: string, roundNumber: number, category?: string) =>
+    apiFetch<RoundContestantsData>(`/api/public/competitions/${id}/rounds/${roundNumber}/contestants`, { query: { category } }),
+  currentPerformer: (id: string) => apiFetch<LiveStageData>(`/api/public/competitions/${id}/current-performer`),
+  results: (id: string, category?: string) => apiFetch<any>(`/api/public/competitions/${id}/results`, { query: { category } }),
+  /**
+   * Official final lineup — only contestants checked in PRESENT at the venue,
+   * in arrival order (`/final-participants`, alias `/attendance-list`).
+   */
+  finalParticipants: (id: string, category?: string) =>
+    apiFetch<FinalLineup>(`/api/v1/competitions/${id}/final-participants`, { query: { category } }).catch(() =>
+      apiFetch<FinalLineup>(`/api/public/competitions/${id}/attendance-list`, { query: { category } })
+    ),
   feedbacks: (id: string, submissionId: string) =>
     apiFetch<any>(`/api/v1/competitions/${id}/contestants/${submissionId}/feedbacks`, { auth: "user" }).catch(() =>
       apiFetch<any>(`/api/public/competitions/${id}/contestants/${submissionId}/feedbacks`)
     ),
-  vote: (id: string, body: any) => apiFetch<any>(`/api/public/competitions/${id}/vote`, { method: "POST", auth: "user", body }),
+  vote: (id: string, body: { participant_id: string } & VoteOpts) =>
+    apiFetch<{ message?: string; round_number?: number }>(`/api/public/competitions/${id}/vote`, {
+      method: "POST",
+      auth: "user",
+      body: { source: "MOBILE_APP", is_paid_pack: false, ...body },
+    }),
   liveVoting: () =>
     apiFetch<any>("/api/v1/users/me/home/live-voting", { auth: "user" }).catch(() =>
       apiFetch<any>("/api/public/users/me/home/live-voting", { auth: "user" })
     ),
   /** Public live-stage snapshot — readable without signing in. */
-  liveStage: (id: string) => apiFetch<any>(`/api/public/competitions/${id}/live-stage`),
+  liveStage: (id: string) => apiFetch<LiveStageData>(`/api/public/competitions/${id}/live-stage`),
 };
 
 /** Homepage featured tiles — the admin-curated promo grid. */

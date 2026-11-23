@@ -29,12 +29,16 @@ import {
   Check,
   Clock,
   Share2,
+  ArrowUpRight,
+  Flag,
+  Lock,
 } from "lucide-react-native";
 import { useTheme } from "@/theme/ThemeProvider";
 import { publicApi, competeApi, safe, toRows, type ShareLinkData } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
 import { useSession } from "@/context/Session";
 import { Txt, Skeleton, EmptyState } from "@/components/ui";
+import type { RoundInfo } from "@/lib/api";
 import { VerifiedTick } from "@/components/VerifiedBadge";
 import { useAlert } from "@/components/Popup";
 import { playNavFeedback } from "@/lib/sound";
@@ -157,7 +161,7 @@ export default function Leaderboard() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user } = useSession();
-  const params = useLocalSearchParams<{ competition?: string; comp_id?: string; id?: string }>();
+  const params = useLocalSearchParams<{ competition?: string; comp_id?: string; id?: string; round?: string }>();
   const say = useAlert();
   const initialCompId = params.competition || params.comp_id || params.id;
 
@@ -168,7 +172,10 @@ export default function Leaderboard() {
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState("ALL");
   const [activeRound, setActiveRound] = useState<number | null>(null);
-  const [rounds, setRounds] = useState<any[]>([]);
+  const [rounds, setRounds] = useState<RoundInfo[]>([]);
+  /** The round that is live right now — the only one votes count towards. */
+  const [currentRound, setCurrentRound] = useState<number | null>(null);
+  const roundParamUsed = useRef(false);
   const [categories, setCategories] = useState<string[]>([]);
   const [categoryLeaderboards, setCategoryLeaderboards] = useState<Record<string, Row[]>>({});
   const [votingId, setVotingId] = useState<string | null>(null);
@@ -195,17 +202,30 @@ export default function Leaderboard() {
       .rounds(sel)
       .then((res: any) => {
         if (res && Array.isArray(res.rounds) && res.rounds.length > 0) {
+          const live = res.current_round ?? res.rounds[0].round_number ?? 1;
+          // deep link from the competition's round journey: ?round=N
+          const asked = Number(params.round);
+          const want =
+            !roundParamUsed.current && asked && res.rounds.some((r: RoundInfo) => r.round_number === asked) ? asked : live;
+          roundParamUsed.current = true;
           setRounds(res.rounds);
-          setActiveRound(res.current_round ?? res.rounds[0].round_number ?? 1);
+          setCurrentRound(live);
+          setActiveRound(want);
         } else {
           setRounds([]);
+          setCurrentRound(null);
           setActiveRound(null);
         }
       })
       .catch(() => {
         setRounds([]);
+        setCurrentRound(null);
         setActiveRound(null);
       });
+    // a new competition starts with its own divisions
+    setCategories([]);
+    setCategoryLeaderboards({});
+    setActiveCategory("ALL");
   }, [sel]);
 
   const lb = useAsync(async () => {
@@ -280,9 +300,15 @@ export default function Leaderboard() {
   /* ── User-scoped Voting System ── */
   const userEmail = user?.email?.toLowerCase().trim();
   const userVoteKey = userEmail ? `uti_votes_${userEmail}` : null;
+  const isMultiRound = rounds.length > 1;
+  // one vote per contestant *per round* (backend rule) — remember them the same way
+  const voteScope = isMultiRound && currentRound ? `${sel}#r${currentRound}` : String(sel);
 
   const [voted, setVoted] = useState<Set<string>>(new Set());
   const [bump, setBump] = useState<Record<string, number>>({});
+  // the optimistic +1 only bridges the gap until fresh standings arrive (an app
+  // vote is weighted server-side, so the real number replaces the guess)
+  useEffect(() => setBump({}), [lb.data]);
 
   useEffect(() => {
     if (!sel || !userVoteKey) {
@@ -295,7 +321,7 @@ export default function Leaderboard() {
       .then((v) => {
         if (!alive) return;
         const all = v ? JSON.parse(v) : {};
-        setVoted(new Set<string>(all[String(sel)] || []));
+        setVoted(new Set<string>(all[voteScope] || []));
       })
       .catch(() => {
         if (alive) setVoted(new Set());
@@ -303,15 +329,15 @@ export default function Leaderboard() {
     return () => {
       alive = false;
     };
-  }, [sel, userVoteKey]);
+  }, [sel, userVoteKey, voteScope]);
 
   const rememberVote = async (pid: string) => {
     if (!userVoteKey || !sel) return;
     try {
       const all = JSON.parse((await SecureStore.getItemAsync(userVoteKey)) || "{}");
-      const mine: string[] = all[String(sel)] || [];
+      const mine: string[] = all[voteScope] || [];
       if (!mine.includes(pid)) {
-        all[String(sel)] = [...mine, pid];
+        all[voteScope] = [...mine, pid];
         await SecureStore.setItemAsync(userVoteKey, JSON.stringify(all));
       }
     } catch {}
@@ -342,7 +368,7 @@ export default function Leaderboard() {
     playNavFeedback();
 
     try {
-      await competeApi.vote(sel, pId);
+      await competeApi.vote(sel, pId, currentRound ? { round_number: currentRound } : {});
       await rememberVote(pId);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       say("success", "Vote counted", `You backed ${who}. Rankings update live.`);
@@ -407,6 +433,26 @@ export default function Leaderboard() {
       : `${compTitle} is live on Upgrade Talents India — check the leaderboard and vote for your favourite! 🏆`;
     return podium ? `${head}\n\n${podium}` : head;
   })();
+
+  const roundInfo = isMultiRound ? rounds.find((r) => r.round_number === activeRound) : undefined;
+  const roundUpcoming = String(roundInfo?.status || "").toUpperCase() === "UPCOMING";
+  const advancingCount = (lb.data as any)?.advancing_count ?? roundInfo?.advancing_count ?? null;
+
+  /* A round that hasn't started has no scores yet — show who qualified into it. */
+  const qualified = useAsync(
+    () =>
+      sel && activeRound && roundUpcoming
+        ? safe(publicApi.roundContestants(sel, activeRound, activeCategory !== "ALL" ? activeCategory : undefined), null)
+        : Promise.resolve(null),
+    [sel, activeRound, roundUpcoming, activeCategory]
+  );
+  const qualifiedRows: Row[] = (qualified.data?.contestants as Row[]) || [];
+
+  /* Votes only land while voting is OPEN, and only in the live round. */
+  const votingOpen =
+    selectedComp?.audience_voting_enabled !== false &&
+    String(selectedComp?.voting_status ?? "OPEN").toUpperCase() === "OPEN";
+  const canVote = votingOpen && (!isMultiRound || activeRound === currentRound);
 
   const top1 = filteredRows[0] || null;
   const top2 = filteredRows[1] || null;
@@ -567,6 +613,8 @@ export default function Leaderboard() {
                 return (
                   <Pressable
                     key={rNum}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: on }}
                     onPress={() => {
                       Haptics.selectionAsync().catch(() => {});
                       setActiveRound(rNum);
@@ -581,16 +629,26 @@ export default function Leaderboard() {
                       size={13}
                       font="sansBold"
                       numberOfLines={1}
-                      style={{ color: on ? "#FFFFFF" : "rgba(255,255,255,0.45)" }}
+                      style={{ color: on ? "#FFFFFF" : "rgba(255,255,255,0.55)" }}
                     >
-                      {rnd.round_name || `Round ${rNum}`}
+                      {rnd.name || `Round ${rNum}`}
                     </Txt>
+                    <RoundStatus status={rnd.status} />
                   </Pressable>
                 );
               })}
             </View>
           </ScrollView>
         )}
+
+        {roundInfo ? (
+          <RoundBrief
+            round={roundInfo}
+            total={rounds.length}
+            advancing={advancingCount}
+            isLive={activeRound === currentRound}
+          />
+        ) : null}
 
         {/* Categories Pills */}
         {categories.length > 0 && (
@@ -688,6 +746,14 @@ export default function Leaderboard() {
             <Skeleton h={220} radius={22} />
             <Skeleton h={300} radius={22} />
           </View>
+        ) : roundUpcoming ? (
+          <QualifiedList
+            loading={qualified.loading}
+            roundName={roundInfo?.name || `Round ${activeRound}`}
+            rows={qualifiedRows.filter(
+              (r: any) => !search.trim() || String(r.user_name || r.full_name || "").toLowerCase().includes(search.trim().toLowerCase())
+            )}
+          />
         ) : filteredRows.length > 0 ? (
           <View>
             {/* ══════════════════════════════════════════════════════════
@@ -787,8 +853,14 @@ export default function Leaderboard() {
                 {filteredRows.map((r, i) => {
                   const rankNum = r.rank || i + 1;
                   const ringColor = LIST_RING_COLORS[i % LIST_RING_COLORS.length];
+                  const advancing = isMultiRound && !!(r as any).is_advancing;
+                  const out = String((r as any).round_status || "").toUpperCase() === "ELIMINATED";
+                  // the cutoff sits under the last contestant inside the advancing zone
+                  const cutoffAfter =
+                    advancing && !(filteredRows[i + 1] as any)?.is_advancing && i < filteredRows.length - 1;
                   return (
-                    <View key={r.participant_id || r.email || i} style={styles.tableRow}>
+                    <React.Fragment key={r.participant_id || r.email || i}>
+                    <View style={[styles.tableRow, out && { opacity: 0.55 }]}>
                       {/* 1. RANK BADGE (Laurel Wreath for 1,2,3; Dark circle for 4+) */}
                       <View style={{ width: 44, alignItems: "center", justifyContent: "center" }}>
                         {rankNum <= 3 ? (
@@ -831,6 +903,14 @@ export default function Leaderboard() {
                               {r.category}
                             </Txt>
                           ) : null}
+                          {advancing || out ? (
+                            <View style={[styles.zoneChip, out && styles.zoneChipOut]}>
+                              {advancing ? <ArrowUpRight size={10} color="#22C55E" strokeWidth={3} /> : null}
+                              <Txt size={10} font="sansBold" style={{ color: advancing ? "#22C55E" : "#8A90A6" }}>
+                                {advancing ? (roundInfo?.is_final_round ? "Winner zone" : "Qualifies") : "Eliminated"}
+                              </Txt>
+                            </View>
+                          ) : null}
                         </View>
                       </View>
 
@@ -843,6 +923,14 @@ export default function Leaderboard() {
 
                       {/* 4. VOTES & ACTION COLUMN (Green text + heart) */}
                       <View style={styles.votesColumn}>
+                        {!canVote ? (
+                          <View style={[styles.voteActionBtn, styles.voteStatic]}>
+                            <Heart size={12} color="#8A90A6" />
+                            <Txt size={11.5} font="sansBold" style={{ color: "#C5CAD6" }}>
+                              {voteCount(r)}
+                            </Txt>
+                          </View>
+                        ) : (
                         <Pressable
                           onPress={() => handleVote(r)}
                           disabled={hasVoted(r) || votingId === pidOf(r)}
@@ -866,8 +954,19 @@ export default function Leaderboard() {
                             {voteCount(r)}
                           </Txt>
                         </Pressable>
+                        )}
                       </View>
                     </View>
+                    {cutoffAfter ? (
+                      <View style={styles.cutoff}>
+                        <View style={styles.cutoffLine} />
+                        <Txt size={10} font="sansBold" tracking={1.4} style={{ color: "#22C55E" }}>
+                          {advancingCount ? `TOP ${advancingCount} ADVANCE` : "QUALIFYING CUTOFF"}
+                        </Txt>
+                        <View style={styles.cutoffLine} />
+                      </View>
+                    ) : null}
+                    </React.Fragment>
                   );
                 })}
               </View>
@@ -953,6 +1052,132 @@ export default function Leaderboard() {
         }}
         onClose={() => setShareOpen(false)}
       />
+    </View>
+  );
+}
+
+/* ── Rounds ─────────────────────────────────────────────────────────────── */
+
+const ROUND_TONE: Record<string, { label: string; color: string }> = {
+  ACTIVE: { label: "Live", color: "#FF385C" },
+  COMPLETED: { label: "Done", color: "#22C55E" },
+  UPCOMING: { label: "Upcoming", color: "#8A90A6" },
+};
+const toneOf = (status?: string) => ROUND_TONE[String(status || "").toUpperCase()] || ROUND_TONE.UPCOMING;
+
+/** Tiny status line under a round tab. */
+function RoundStatus({ status }: { status?: string }) {
+  const t = toneOf(status);
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+      <View style={{ width: 5, height: 5, borderRadius: 999, backgroundColor: t.color }} />
+      <Txt size={10} font="sansSemi" style={{ color: t.color }}>{t.label}</Txt>
+    </View>
+  );
+}
+
+const shortDate = (d?: string | null) => {
+  if (!d) return null;
+  const t = new Date(d);
+  return Number.isFinite(t.getTime()) ? t.toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : null;
+};
+
+/** What this round is: its stage in the journey, who's in it, how many go through. */
+function RoundBrief({
+  round,
+  total,
+  advancing,
+  isLive,
+}: {
+  round: RoundInfo;
+  total: number;
+  advancing: number | null;
+  isLive: boolean;
+}) {
+  const t = toneOf(round.status);
+  const dates = [shortDate(round.start_date), shortDate(round.end_date)].filter(Boolean).join(" – ");
+  const facts = [
+    `Round ${round.round_number} of ${total}`,
+    round.qualified_contestant_count != null ? `${round.qualified_contestant_count} in this round` : null,
+    dates || null,
+  ].filter(Boolean);
+  return (
+    <View style={styles.brief}>
+      <View style={[styles.briefIcon, { backgroundColor: t.color + "1F" }]}>
+        {round.is_final_round ? <Trophy size={16} color={t.color} /> : <Flag size={16} color={t.color} />}
+      </View>
+      <View style={{ flex: 1 }}>
+        <Txt size={14} font="sansBold" style={{ color: "#FFFFFF" }}>
+          {round.name || `Round ${round.round_number}`}
+        </Txt>
+        <Txt size={11.5} style={{ color: "#8A90A6", marginTop: 2 }}>{facts.join(" · ")}</Txt>
+        {round.description ? (
+          <Txt size={12} lh={17} style={{ color: "#C5CAD6", marginTop: 6 }}>{round.description}</Txt>
+        ) : null}
+        <Txt size={11.5} font="sansSemi" style={{ color: round.is_final_round ? "#F5C542" : "#22C55E", marginTop: 6 }}>
+          {round.is_final_round
+            ? "Final round — this decides the winners"
+            : advancing
+            ? `Top ${advancing} advance to the next round`
+            : "Qualifiers are picked when this round closes"}
+        </Txt>
+        {!isLive && String(round.status).toUpperCase() !== "UPCOMING" ? (
+          <Txt size={11} style={{ color: "#8A90A6", marginTop: 4 }}>Votes now count towards the live round.</Txt>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+/** Contestants qualified into a round that hasn't started yet. */
+function QualifiedList({ loading, roundName, rows }: { loading: boolean; roundName: string; rows: Row[] }) {
+  if (loading) {
+    return (
+      <View style={{ gap: 10, marginTop: 10, paddingHorizontal: 16 }}>
+        {[0, 1, 2, 3].map((i) => <Skeleton key={i} h={60} radius={16} />)}
+      </View>
+    );
+  }
+  if (!rows.length) {
+    return (
+      <EmptyState
+        icon={<Lock size={26} color="#9EA3B8" />}
+        title={`${roundName} hasn't started`}
+        subtitle="Qualifiers are announced when the previous round closes."
+      />
+    );
+  }
+  return (
+    <View style={{ paddingHorizontal: 16, marginTop: 8 }}>
+      <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginBottom: 12 }}>
+        <Txt size={17} font="sansBold" style={{ color: "#FFFFFF" }}>Qualified for {roundName}</Txt>
+        <Txt size={12} font="sansSemi" style={{ color: "#8A90A6" }}>{rows.length}</Txt>
+      </View>
+      <View style={{ gap: 8 }}>
+        {rows.map((r: any, i) => (
+          <View key={r.registration_id || r.user_email || i} style={styles.qRow}>
+            <Txt size={12} font="sansExt" style={{ color: "#8A90A6", width: 22, textAlign: "center" }}>{i + 1}</Txt>
+            <View style={styles.tableAvatarRing}>
+              <Image source={getAvatarSource(r.profile_photo || r.avatar, r.user_email || i)} style={styles.avatarImg} contentFit="cover" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 4 }}>
+                <Txt size={13.5} font="sansBold" lh={18} style={{ color: "#FFFFFF", flexShrink: 1 }}>
+                  {r.user_name || r.full_name || "Contestant"}
+                </Txt>
+                <View style={{ marginTop: 3 }}>
+                  <VerifiedTick row={r} size={11} />
+                </View>
+              </View>
+              {r.category ? <Txt size={10.5} tone="subtle" style={{ marginTop: 1 }}>{r.category}</Txt> : null}
+            </View>
+            <View style={styles.zoneChip}>
+              <Check size={10} color="#22C55E" strokeWidth={3} />
+              <Txt size={10} font="sansBold" style={{ color: "#22C55E" }}>Qualified</Txt>
+            </View>
+          </View>
+        ))}
+      </View>
     </View>
   );
 }
@@ -1151,7 +1376,8 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   segItem: {
-    height: 36,
+    minHeight: 46,
+    paddingVertical: 6,
     paddingHorizontal: 18,
     alignItems: "center",
     justifyContent: "center",
@@ -1212,6 +1438,49 @@ const styles = StyleSheet.create({
     backgroundColor: "#161724",
     alignItems: "center",
     justifyContent: "center",
+  },
+  zoneChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 3,
+    marginTop: 4,
+    paddingHorizontal: 7,
+    height: 18,
+    borderRadius: 999,
+    backgroundColor: "rgba(34,197,94,0.12)",
+  },
+  zoneChipOut: { backgroundColor: "rgba(255,255,255,0.06)" },
+  cutoff: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  cutoffLine: { flex: 1, height: 1, backgroundColor: "rgba(34,197,94,0.35)" },
+  voteStatic: { backgroundColor: "rgba(255,255,255,0.05)", borderColor: "rgba(255,255,255,0.1)" },
+  brief: {
+    flexDirection: "row",
+    gap: 12,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    padding: 14,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  briefIcon: { width: 36, height: 36, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  qRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 10,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.035)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.05)",
   },
   tableNumCircle: {
     width: 30,

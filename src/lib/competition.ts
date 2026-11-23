@@ -80,7 +80,7 @@ export function liveVotingIds(payload: any): Set<string> | undefined {
     ? payload
     : payload?.competitions || payload?.items || payload?.live_voting || payload?.data;
   if (!Array.isArray(rows)) return undefined;
-  return new Set(rows.map((r: any) => compId(r?.competition || r)).filter(Boolean));
+  return new Set(rows.map((r: any) => compId(r?.competition || r) || String(r?.competition_id ?? "")).filter(Boolean));
 }
 
 /** The live-voting rows themselves, normalised out of the same payload. */
@@ -89,5 +89,9 @@ export function liveVotingRows(payload: any): CompRow[] {
     ? payload
     : payload?.competitions || payload?.items || payload?.live_voting || payload?.data;
   if (!Array.isArray(rows)) return [];
-  return rows.map((r: any) => ({ ...(r?.competition || {}), ...r })).filter((r) => compId(r));
+  // `/users/me/home/live-voting` answers with `competition_id` rather than `_id`.
+  return rows
+    .map((r: any) => ({ ...(r?.competition || {}), ...r }))
+    .map((r: any) => (compId(r) ? r : { ...r, _id: r.competition_id }))
+    .filter((r) => compId(r));
 }
