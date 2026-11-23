@@ -1,10 +1,9 @@
 import React, { useMemo, useState } from "react";
-import { View, Pressable, Animated, Easing, TextInput, ScrollView } from "react-native";
+import { View, Pressable, TextInput, ScrollView, StyleSheet, Dimensions } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import {
-  Trophy, Crown, Medal, Vote, Gavel, Hourglass, ShieldCheck,
-  MessageSquareQuote, Play, Pause, Award, Search, ArrowLeft,
+  Trophy, Vote, Hourglass, ShieldCheck, Play, Pause, Award, Search, Heart, Share2,
 } from "lucide-react-native";
 import { useAudioPlayer } from "expo-audio";
 import { SubScreen } from "@/components/SubScreen";
@@ -12,23 +11,26 @@ import { useTheme } from "@/theme/ThemeProvider";
 import { useSession } from "@/context/Session";
 import { competeApi, publicCompetitionsApi, extrasApi, assetUrl, safe } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
-import { Txt, Skeleton, EmptyState, Badge, Button } from "@/components/ui";
+import { Txt, Skeleton, EmptyState, Button } from "@/components/ui";
 import { Avatar } from "@/components/Avatar";
 import { VerifiedTick } from "@/components/VerifiedBadge";
-import { DottedGrid } from "@/components/patterns";
 import { Intro, useIntro } from "@/components/motion";
+import { Podium, RankLaurel, type PodiumEntry } from "@/components/Podium";
 import { formatDateTime } from "@/lib/format";
+import { ShareSheet } from "@/components/ShareSheet";
 
-/* The competitions chapter runs pink/magenta; results keep that identity but
-   crown it in gold so the winners read as winners. */
+/* Results share the live leaderboard's look: the gold-lit 3D podium, laurel
+   medals for the top three and a dark standings table below. */
 const PINK = "#FF385C";
-const DEEP = "#14161E";
-const GOLD = "#C9F24A";
-const PODIUM = ["#C9F24A", "#dfe6ef", "#FF385C"]; // gold / silver / bronze
+const GOLD = "#F5C542";
+const EMERALD = "#10B981";
+const PAGE_BG = "#08090C"; // SubScreen's background — the podium fades into it
+const { width: SCREEN_W } = Dimensions.get("window");
 
 type Row = Record<string, any>;
 const rowName = (r: Row) => r.name || r.user_name || r.email || r.user_email || "Contestant";
 const rowScore = (r: Row) => Number(r.final_score ?? r.total_score ?? r.score ?? 0);
+const fmtScore = (n: number) => (Number.isInteger(n) ? n.toLocaleString("en-IN") : n.toFixed(1));
 
 export default function CompetitionResults() {
   const { c } = useTheme();
@@ -110,16 +112,69 @@ export default function CompetitionResults() {
   );
   const feedbacks: any[] = Array.isArray(fb.data) ? fb.data : [];
 
+  /* Share — the message is built from the published results themselves:
+     the member's own placing when they're in it, otherwise the top three. */
+  const [shareOpen, setShareOpen] = useState(false);
+  const shareUrl = `https://upgradetalentsindia.in/competitions/${id}/results`;
+  const shareMessage = (() => {
+    // overall top three — not whatever category filter happens to be on
+    const podium = allRows
+      .slice(0, 3)
+      .map((r, i) => `${["🥇", "🥈", "🥉"][i]} ${rowName(r)}`)
+      .join("\n");
+    const myRank = Number(myRow?.rank);
+    const mine =
+      myRow && Number.isFinite(myRank) && myRank > 0
+        ? `I placed ${ordinal(myRank)} in ${title} on Upgrade Talents India! 🎉`
+        : `The official results of ${title} on Upgrade Talents India are out! 🏆`;
+    return podium ? `${mine}\n\n${podium}` : mine;
+  })();
+
+  /** A podium slot from a real results row. */
+  const toEntry = (r?: Row): PodiumEntry =>
+    r
+      ? {
+          key: String(r.participant_id || r.user_email || r.email || rowName(r)),
+          name: rowName(r),
+          renderAvatar: (sz) => <Avatar name={rowName(r)} photo={r.profile_photo} size={sz} />,
+          score: fmtScore(rowScore(r)),
+          badge: <VerifiedTick row={r} size={12} />,
+        }
+      : null;
+
   return (
     <SubScreen
       eyebrow="Official results"
       title={title}
       refreshing={res.refreshing}
       onRefresh={() => { res.refresh(); comp.refresh(); certsQ.refresh(); }}
+      right={
+        published ? (
+          <Pressable
+            onPress={() => setShareOpen(true)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Share results"
+            style={({ pressed }) => [sx.shareBtn, { transform: [{ scale: pressed ? 0.94 : 1 }] }]}
+          >
+            <Share2 size={17} color="#FFFFFF" />
+          </Pressable>
+        ) : null
+      }
+      overlay={
+        <ShareSheet
+          visible={shareOpen}
+          title="Share results"
+          subtitle={title}
+          message={shareMessage}
+          url={shareUrl}
+          onClose={() => setShareOpen(false)}
+        />
+      }
     >
       {res.loading ? (
         <View style={{ gap: 14 }}>
-          <Skeleton h={220} radius={24} />
+          <Skeleton h={300} radius={24} />
           {[0, 1, 2].map((i) => <Skeleton key={i} h={64} radius={16} />)}
         </View>
       ) : !published ? (
@@ -145,121 +200,63 @@ export default function CompetitionResults() {
         </View>
       ) : (
         <View style={{ gap: 18 }}>
-          {/* ── Current Participant Spotlight ── */}
+          {/* ── The signed-in member's own result ── */}
           {myRow ? (
             <Intro t={intro} at={0.04} span={0.4} y={16}>
-              <View
-                style={{
-                  borderRadius: 20,
-                  borderWidth: 1.5,
-                  borderColor: "#FF385C",
-                  backgroundColor: "#14161E",
-                  padding: 16,
-                  shadowColor: "#FF385C",
-                  shadowOpacity: 0.25,
-                  shadowRadius: 12,
-                  elevation: 6,
-                }}
-              >
-                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                    <View
-                      style={{
-                        width: 46,
-                        height: 46,
-                        borderRadius: 14,
-                        backgroundColor: "#FF385C",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <Txt size={18} font="display" style={{ color: "#ffffff" }}>
-                        #{myRow.rank ?? "—"}
-                      </Txt>
-                    </View>
-                    <View>
-                      <Txt size={10} font="monoMed" tone="accent" tracking={1.5} uppercase>
-                        Your Performance Summary
-                      </Txt>
-                      <Txt size={15} font="sansBold" style={{ color: "#ffffff", marginTop: 2 }}>
-                        {user?.name || user?.email}
-                      </Txt>
-                    </View>
-                  </View>
-                  {myCert ? (
-                    <Pressable
-                      onPress={() => router.push("/(more)/certificates")}
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 6,
-                        backgroundColor: "#C9F24A",
-                        paddingHorizontal: 12,
-                        paddingVertical: 7,
-                        borderRadius: 999,
-                      }}
-                    >
-                      <Award size={13} color="#08090C" />
-                      <Txt size={11.5} font="sansBold" style={{ color: "#08090C" }}>
-                        Certificate
-                      </Txt>
-                    </Pressable>
-                  ) : null}
-                </View>
-
-                {/* Score Pills */}
-                <View style={{ flexDirection: "row", gap: 8, marginTop: 14 }}>
-                  <View style={{ flex: 1, backgroundColor: "#08090C", borderRadius: 12, padding: 10, alignItems: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" }}>
-                    <Txt size={17} font="sansExt" tone="accent">{rowScore(myRow).toFixed(1)}</Txt>
-                    <Txt size={9.5} font="monoMed" tone="subtle" uppercase tracking={1} style={{ marginTop: 2 }}>Final Score</Txt>
-                  </View>
-                  <View style={{ flex: 1, backgroundColor: "#08090C", borderRadius: 12, padding: 10, alignItems: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" }}>
-                    <Txt size={17} font="sansExt" style={{ color: "#ffffff" }}>{Number(myRow.judge_score ?? myRow.raw_judge_score ?? 0).toFixed(1)}</Txt>
-                    <Txt size={9.5} font="monoMed" tone="subtle" uppercase tracking={1} style={{ marginTop: 2 }}>Judge Score</Txt>
-                  </View>
-                  <View style={{ flex: 1, backgroundColor: "#08090C", borderRadius: 12, padding: 10, alignItems: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" }}>
-                    <Txt size={17} font="sansExt" style={{ color: "#ffffff" }}>{Number(myRow.audience_votes ?? myRow.raw_audience_votes ?? 0).toLocaleString("en-IN")}</Txt>
-                    <Txt size={9.5} font="monoMed" tone="subtle" uppercase tracking={1} style={{ marginTop: 2 }}>Votes</Txt>
-                  </View>
-                </View>
-              </View>
+              <MyResultCard
+                row={myRow}
+                name={user?.name || rowName(myRow)}
+                hasCert={!!myCert}
+                onCert={() => router.push("/(more)/certificates")}
+              />
             </Intro>
           ) : null}
 
-          {/* ── The podium ── */}
-          <Intro t={intro} at={0} span={0.5} y={20}>
-            <View style={{ borderRadius: 26, overflow: "hidden" }}>
-              <LinearGradient colors={[PINK, DEEP, "#120512"] as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 18, paddingTop: 20 }}>
-                <DottedGrid color="rgba(255,255,255,0.18)" opacity={0.4} gap={20} />
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 7, alignSelf: "center", marginBottom: 16 }}>
-                  <Trophy size={14} color={GOLD} />
-                  <Txt size={11} font="monoMed" tracking={2.5} uppercase style={{ color: GOLD }}>Winners' circle</Txt>
-                </View>
-
-                <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "center", gap: 10 }}>
-                  {second ? <PodiumSpot row={second} place={2} /> : null}
-                  {first ? <PodiumSpot row={first} place={1} /> : null}
-                  {third ? <PodiumSpot row={third} place={3} /> : null}
-                </View>
-              </LinearGradient>
+          {/* ── Podium: the same 3D blocks as the live leaderboard, rising in ── */}
+          <View style={{ marginHorizontal: -20 }}>
+            {rows.length ? (
+              <Podium
+                width={SCREEN_W}
+                bg={PAGE_BG}
+                first={toEntry(first)}
+                second={toEntry(second)}
+                third={toEntry(third)}
+                replayKey={selectedCategory}
+              />
+            ) : null}
+            <View style={{ alignItems: "center", marginTop: rows.length ? -Math.round(SCREEN_W * 0.1) : 0 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Trophy size={13} color={GOLD} />
+                <Txt size={11.5} font="sansExt" tracking={2.2} uppercase style={{ color: GOLD }}>
+                  Winners' circle
+                </Txt>
+              </View>
+              <Txt size={28} font="display" style={{ color: "#FFFFFF", marginTop: 6, letterSpacing: -0.5 }}>
+                Final Standings
+              </Txt>
+              {!rows.length ? (
+                <Txt size={12.5} tone="subtle" style={{ marginTop: 6 }}>
+                  No contestant matches this filter.
+                </Txt>
+              ) : null}
             </View>
-          </Intro>
+          </View>
 
           {/* ── Certified banner ── */}
           <Intro t={intro} at={0.12} span={0.4} y={16}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 16, borderWidth: 1, borderColor: c.success + "40", backgroundColor: c.success + "12", padding: 13 }}>
-              <ShieldCheck size={17} color={c.success} />
-              <Txt size={12.5} lh={17} style={{ flex: 1 }}>
-                <Txt size={12.5} font="sansBold" tone="success">Certified final.</Txt>{" "}
+            <View style={sx.certified}>
+              <ShieldCheck size={17} color={EMERALD} />
+              <Txt size={12.5} lh={17} style={{ flex: 1, color: "#CBD5E1" }}>
+                <Txt size={12.5} font="sansBold" style={{ color: EMERALD }}>Certified final.</Txt>{" "}
                 {snap.ranking_mode ? `Ranked by ${String(snap.ranking_mode).replace(/_/g, " ")}. ` : ""}
                 {snap.calculated_at ? `Declared ${formatDateTime(snap.calculated_at)}.` : ""}
               </Txt>
             </View>
           </Intro>
 
-          {/* ── Category Filters & Search ── */}
+          {/* ── Category filters & search ── */}
           {categories.length > 0 || allRows.length > 4 ? (
-            <View style={{ gap: 12 }}>
+            <View style={{ gap: 10 }}>
               {categories.length > 0 ? (
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
                   {categories.map((cat) => {
@@ -268,16 +265,9 @@ export default function CompetitionResults() {
                       <Pressable
                         key={cat}
                         onPress={() => setSelectedCategory(cat)}
-                        style={{
-                          paddingHorizontal: 14,
-                          paddingVertical: 7,
-                          borderRadius: 999,
-                          backgroundColor: active ? "#FF385C" : "#14161E",
-                          borderWidth: 1,
-                          borderColor: active ? "#FF385C" : "rgba(255,255,255,0.1)",
-                        }}
+                        style={[sx.catPill, active && sx.catPillOn]}
                       >
-                        <Txt size={12} font="sansBold" style={{ color: active ? "#ffffff" : "#9ea3b8" }}>
+                        <Txt size={12} font="sansBold" style={{ color: active ? PINK : "#9EA3B8" }}>
                           {cat}
                         </Txt>
                       </Pressable>
@@ -287,26 +277,14 @@ export default function CompetitionResults() {
               ) : null}
 
               {allRows.length > 4 ? (
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 10,
-                    backgroundColor: "#14161E",
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: "rgba(255, 255, 255, 0.1)",
-                    paddingHorizontal: 12,
-                    height: 42,
-                  }}
-                >
-                  <Search size={16} color="#6b728a" />
+                <View style={sx.search}>
+                  <Search size={15} color="#64748B" />
                   <TextInput
                     value={search}
                     onChangeText={setSearch}
                     placeholder="Search contestants…"
-                    placeholderTextColor="#6b728a"
-                    style={{ flex: 1, color: "#ffffff", fontSize: 13.5 }}
+                    placeholderTextColor="#64748B"
+                    style={{ flex: 1, color: "#ffffff", fontSize: 13.5, paddingVertical: 0 }}
                   />
                 </View>
               ) : null}
@@ -317,10 +295,9 @@ export default function CompetitionResults() {
           {feedbacks.length ? (
             <Intro t={intro} at={0.16} span={0.42} y={18}>
               <View style={{ gap: 10 }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
-                  <MessageSquareQuote size={14} color={PINK} />
-                  <Txt size={12.5} font="monoMed" tracking={2} uppercase style={{ color: PINK }}>Your judge feedback</Txt>
-                </View>
+                <Txt size={11} font="sansBold" tracking={2} uppercase style={{ color: "#64748B" }}>
+                  Your judge feedback
+                </Txt>
                 {feedbacks.map((f, i) => <FeedbackCard key={f._id || i} fb={f} />)}
               </View>
             </Intro>
@@ -328,22 +305,30 @@ export default function CompetitionResults() {
 
           {/* ── The rest of the field ── */}
           {rest.length ? (
-            <View style={{ gap: 10 }}>
-              <Txt size={12.5} font="monoMed" tone="subtle" tracking={2} uppercase style={{ marginLeft: 2 }}>Full standings</Txt>
+            <View style={{ marginHorizontal: -20 }}>
+              <Txt size={11} font="sansBold" tracking={2} uppercase style={{ color: "#64748B", marginLeft: 20, marginBottom: 8 }}>
+                Full standings
+              </Txt>
+              <View style={sx.tableHead}>
+                <Txt size={10.5} font="sansBold" style={[sx.headLabel, { width: 44, textAlign: "center" }]}>RANK</Txt>
+                <Txt size={10.5} font="sansBold" style={[sx.headLabel, { flex: 1, paddingLeft: 8 }]}>USER</Txt>
+                <Txt size={10.5} font="sansBold" style={[sx.headLabel, { width: 64, textAlign: "right", paddingRight: 10 }]}>SCORE</Txt>
+                <Txt size={10.5} font="sansBold" style={[sx.headLabel, { width: 60, textAlign: "right" }]}>VOTES</Txt>
+              </View>
               {rest.map((r, i) => (
                 <Intro key={r.participant_id || r.user_email || i} t={intro} at={Math.min(0.2 + i * 0.05, 0.7)} span={0.4} y={18}>
-                  <RankRow row={r} />
+                  <StandingRow row={r} rank={Number(r.rank ?? i + 4)} />
                 </Intro>
               ))}
             </View>
           ) : null}
 
           <Pressable
-            onPress={() => router.push("/(more)/leaderboard")}
+            onPress={() => router.push({ pathname: "/(more)/leaderboard", params: { competition: String(id) } })}
             style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1, alignSelf: "center", marginTop: 4, flexDirection: "row", alignItems: "center", gap: 6 })}
           >
-            <Vote size={14} color={c.accent} />
-            <Txt size={13} font="sansBold" tone="accent">See the live leaderboard</Txt>
+            <Vote size={14} color={PINK} />
+            <Txt size={13} font="sansBold" style={{ color: PINK }}>See the live leaderboard</Txt>
           </Pressable>
         </View>
       )}
@@ -382,82 +367,227 @@ function FeedbackCard({ fb }: { fb: any }) {
   );
 }
 
-/** A spot on the 1-2-3 podium; first place is raised and crowned. */
-function PodiumSpot({ row, place }: { row: Row; place: 1 | 2 | 3 }) {
-  const color = PODIUM[place - 1];
-  const top = place === 1;
-  const size = top ? 76 : 60;
-  const barH = place === 1 ? 70 : place === 2 ? 52 : 40;
+const ordinal = (n: number) => {
+  const v = n % 100;
+  const suf = v >= 11 && v <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th";
+  return `${n}${suf}`;
+};
 
-  const rise = useRef0to1(place);
-
+/** Your rank, your three numbers, and the certificate if one was issued. */
+function MyResultCard({ row, name, hasCert, onCert }: { row: Row; name: string; hasCert: boolean; onCert: () => void }) {
+  const rank = Number(row.rank);
+  const hasRank = Number.isFinite(rank) && rank > 0;
   return (
-    <Animated.View style={{ alignItems: "center", width: top ? 104 : 92, transform: [{ translateY: rise.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }], opacity: rise }}>
-      {top ? <Crown size={22} color={color} style={{ marginBottom: 2 }} /> : null}
-      <View style={{ borderWidth: 2.5, borderColor: color, borderRadius: 999, padding: 2, shadowColor: color, shadowOpacity: 0.7, shadowRadius: 12, shadowOffset: { width: 0, height: 0 } }}>
-        <Avatar name={rowName(row)} photo={row.profile_photo} size={size} border={{ width: 0, color }} />
+    <View style={sx.myCard}>
+      <LinearGradient
+        colors={["rgba(245,197,66,0.16)", "rgba(20,22,30,0.92)"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+        {hasRank && rank <= 3 ? (
+          <RankLaurel rank={rank} size={54} medal />
+        ) : (
+          <View style={sx.rankTile}>
+            <Txt size={17} font="display" style={{ color: "#FFFFFF" }}>{hasRank ? `#${rank}` : "—"}</Txt>
+          </View>
+        )}
+        <View style={{ flex: 1 }}>
+          <Txt size={9.5} font="sansExt" tracking={2} uppercase style={{ color: GOLD }}>Your result</Txt>
+          <Txt size={15} font="sansBold" style={{ color: "#FFFFFF", marginTop: 2 }}>{name}</Txt>
+          <Txt size={11} style={{ color: "#8A90A6", marginTop: 1 }}>
+            {[row.category, hasRank ? `${ordinal(rank)} place` : null].filter(Boolean).join(" · ")}
+          </Txt>
+        </View>
+        {hasCert ? (
+          <Pressable onPress={onCert} style={({ pressed }) => [sx.certBtn, { opacity: pressed ? 0.85 : 1 }]}>
+            <Award size={13} color="#1A1200" />
+            <Txt size={11.5} font="sansBold" style={{ color: "#1A1200" }}>Certificate</Txt>
+          </Pressable>
+        ) : null}
       </View>
-      <View style={{ marginTop: -11, width: 24, height: 24, borderRadius: 999, backgroundColor: color, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "#120512" }}>
-        <Txt size={12} font="display" style={{ color: "#120512" }}>{place}</Txt>
-      </View>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 5, maxWidth: top ? 100 : 88 }}>
-        <Txt size={12.5} font="sansBold" numberOfLines={1} style={{ color: "#fff", flexShrink: 1 }}>{rowName(row)}</Txt>
-        <VerifiedTick row={row} size={13} />
-      </View>
-      <Txt size={11} font="monoMed" style={{ color }}>{rowScore(row).toFixed(1)} pts</Txt>
-      <View style={{ width: top ? 54 : 44, height: barH, marginTop: 6, borderTopLeftRadius: 6, borderTopRightRadius: 6, overflow: "hidden" }}>
-        <LinearGradient colors={[color, color + "33"] as any} style={{ flex: 1 }} />
-      </View>
-    </Animated.View>
-  );
-}
 
-function RankRow({ row }: { row: Row }) {
-  const { c } = useTheme();
-  const judge = row.judge_score ?? row.raw_judge_score;
-  const votes = row.audience_votes ?? row.raw_audience_votes;
-  return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 16, borderWidth: 1, borderColor: c.border, backgroundColor: c.surface, padding: 12 }}>
-      <View style={{ width: 30, alignItems: "center" }}>
-        <Txt size={17} font="display" tone="muted">{row.rank ?? "–"}</Txt>
+      <View style={{ flexDirection: "row", gap: 8, marginTop: 14 }}>
+        <Stat value={fmtScore(rowScore(row))} label="Final score" color={GOLD} />
+        <Stat value={Number(row.judge_score ?? row.raw_judge_score ?? 0).toFixed(1)} label="Judge score" />
+        <Stat value={Number(row.audience_votes ?? row.raw_audience_votes ?? 0).toLocaleString("en-IN")} label="Votes" />
       </View>
-      <Avatar name={rowName(row)} photo={row.profile_photo} size={40} />
-      <View style={{ flex: 1 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-          <Txt size={14.5} font="sansSemi" numberOfLines={1} style={{ flexShrink: 1 }}>{rowName(row)}</Txt>
-          <VerifiedTick row={row} size={14} />
-        </View>
-        <View style={{ flexDirection: "row", gap: 10, marginTop: 2 }}>
-          {judge != null ? (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
-              <Gavel size={10} color={c.fgSubtle} />
-              <Txt size={10.5} tone="subtle">{Number(judge).toFixed(1)}</Txt>
-            </View>
-          ) : null}
-          {votes != null ? (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
-              <Vote size={10} color={c.fgSubtle} />
-              <Txt size={10.5} tone="subtle">{Number(votes).toLocaleString("en-IN")}</Txt>
-            </View>
-          ) : null}
-        </View>
-      </View>
-      <Txt size={16} font="display" tone="accent">{rowScore(row).toFixed(1)}</Txt>
     </View>
   );
 }
 
-/** A small staggered rise per podium place. */
-function useRef0to1(place: number) {
-  const v = React.useRef(new Animated.Value(0)).current;
-  React.useEffect(() => {
-    Animated.timing(v, {
-      toValue: 1,
-      duration: 520,
-      delay: 180 + (place === 1 ? 0 : place === 2 ? 140 : 280),
-      easing: Easing.bezier(0.16, 1, 0.3, 1),
-      useNativeDriver: true,
-    }).start();
-  }, []);
-  return v;
+function Stat({ value, label, color = "#FFFFFF" }: { value: string; label: string; color?: string }) {
+  return (
+    <View style={sx.stat}>
+      <Txt size={17} font="sansExt" style={{ color }}>{value}</Txt>
+      <Txt size={9.5} font="sansSemi" tracking={1} uppercase style={{ color: "#8A90A6", marginTop: 2 }}>{label}</Txt>
+    </View>
+  );
 }
+
+/** One row of the standings table — full name, never truncated. */
+function StandingRow({ row, rank }: { row: Row; rank: number }) {
+  const votes = Number(row.audience_votes ?? row.raw_audience_votes ?? 0);
+  const judge = row.judge_score ?? row.raw_judge_score;
+  const sub = [row.category, judge != null ? `Judge ${Number(judge).toFixed(1)}` : null].filter(Boolean).join(" · ");
+  return (
+    <View style={sx.row}>
+      <View style={{ width: 44, alignItems: "center" }}>
+        {rank <= 3 ? (
+          <RankLaurel rank={rank} size={42} medal />
+        ) : (
+          <View style={sx.numCircle}>
+            <Txt size={12.5} font="sansBold" style={{ color: "#E2E8F0" }}>{rank}</Txt>
+          </View>
+        )}
+      </View>
+      <View style={{ marginLeft: 8 }}>
+        <Avatar name={rowName(row)} photo={row.profile_photo} size={38} />
+      </View>
+      <View style={{ flex: 1, marginLeft: 10 }}>
+        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 4 }}>
+          <Txt size={13.5} font="sansBold" style={{ color: "#FFFFFF", flexShrink: 1, lineHeight: 18 }}>
+            {rowName(row)}
+          </Txt>
+          <View style={{ marginTop: 3 }}>
+            <VerifiedTick row={row} size={11} />
+          </View>
+        </View>
+        {sub ? <Txt size={10} tone="subtle" style={{ marginTop: 1 }}>{sub}</Txt> : null}
+      </View>
+      <Txt size={13.5} font="sansExt" style={{ color: "#FFFFFF", width: 64, textAlign: "right", paddingRight: 10 }}>
+        {fmtScore(rowScore(row))}
+      </Txt>
+      <View style={{ width: 60, alignItems: "flex-end" }}>
+        <View style={sx.votePill}>
+          <Heart size={11} color={EMERALD} />
+          <Txt size={11.5} font="sansBold" style={{ color: EMERALD }}>{votes.toLocaleString("en-IN")}</Txt>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const sx = StyleSheet.create({
+  shareBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.12)",
+    backgroundColor: "rgba(20, 22, 30, 0.9)",
+  },
+  myCard: {
+    borderRadius: 20,
+    padding: 16,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(245,197,66,0.35)",
+  },
+  rankTile: {
+    width: 50,
+    height: 50,
+    borderRadius: 14,
+    backgroundColor: "#151824",
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.16)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  certBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: GOLD,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+  },
+  stat: {
+    flex: 1,
+    backgroundColor: "#0B0C14",
+    borderRadius: 12,
+    paddingVertical: 10,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  certified: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(16,185,129,0.3)",
+    backgroundColor: "rgba(16,185,129,0.08)",
+    padding: 12,
+  },
+  catPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+  },
+  catPillOn: {
+    backgroundColor: "rgba(255,56,92,0.2)",
+    borderColor: PINK,
+  },
+  search: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    height: 40,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  tableHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+  },
+  headLabel: {
+    color: "#64748B",
+    letterSpacing: 0.8,
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.04)",
+  },
+  numCircle: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "#151824",
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.16)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  votePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: "rgba(16,185,129,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(16,185,129,0.25)",
+  },
+});

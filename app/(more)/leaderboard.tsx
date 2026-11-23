@@ -16,15 +16,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
 import * as SecureStore from "expo-secure-store";
-import Svg, {
-  Path,
-  G,
-  Polygon,
-  Circle,
-  Defs,
-  RadialGradient,
-  Stop,
-} from "react-native-svg";
 import {
   ChevronLeft,
   SlidersHorizontal,
@@ -37,6 +28,7 @@ import {
   X,
   Check,
   Clock,
+  Share2,
 } from "lucide-react-native";
 import { useTheme } from "@/theme/ThemeProvider";
 import { publicApi, competeApi, safe, toRows } from "@/lib/api";
@@ -46,6 +38,8 @@ import { Txt, Skeleton, EmptyState } from "@/components/ui";
 import { VerifiedTick } from "@/components/VerifiedBadge";
 import { useAlert } from "@/components/Popup";
 import { playNavFeedback } from "@/lib/sound";
+import { ShareSheet } from "@/components/ShareSheet";
+import { Podium, RankLaurel, type PodiumEntry } from "@/components/Podium";
 
 /* ──────────────────────────────────────────────────────────────────────────
    Leaderboard — 3D Glass Block Podium & Championship Table
@@ -110,14 +104,6 @@ function getAvatarSource(uri?: string | null, seed?: string | number) {
   return AVATAR_FALLBACKS[idx];
 }
 
-function GreenDiamond({ size = 10 }: { size?: number }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="#10B981">
-      <Path d="M12 2L22 12L12 22L2 12Z" />
-    </Svg>
-  );
-}
-
 function formatScore(n?: number): string {
   if (typeof n !== "number" || !Number.isFinite(n)) return "0";
   return n.toLocaleString("en-IN");
@@ -133,104 +119,39 @@ const LIST_RING_COLORS = [
   "#F97316", // Orange
 ];
 
-/* ──────────────────────────────────────────────────────────────────────────
-   PodiumWreath — Classic Laurel Wreath with bold number 1, 2, or 3
-   ────────────────────────────────────────────────────────────────────────── */
-function PodiumWreath({
-  rank,
-  size = 50,
-  showAura = false,
-}: {
-  rank: 1 | 2 | 3;
-  size?: number;
-  showAura?: boolean;
-}) {
-  const color =
-    rank === 1 ? "#FBBF24" : rank === 2 ? "#CBD5E1" : "#D97706";
-  const numColor =
-    rank === 1 ? "#FFFFFF" : rank === 2 ? "#CBD5E1" : "#D97706";
-
-  const numFontSize = Math.round(size * 0.42);
-
-  return (
-    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
-      <Svg width={size} height={size} viewBox="0 0 60 60" style={StyleSheet.absoluteFill}>
-        {showAura && (
-          <Defs>
-            <RadialGradient id="wreathGlow" cx="50%" cy="50%" r="50%">
-              <Stop offset="0%" stopColor="#F59E0B" stopOpacity="0.45" />
-              <Stop offset="70%" stopColor="#F59E0B" stopOpacity="0.12" />
-              <Stop offset="100%" stopColor="#F59E0B" stopOpacity="0" />
-            </RadialGradient>
-          </Defs>
-        )}
-        {showAura && <Circle cx="30" cy="30" r="28" fill="url(#wreathGlow)" />}
-
-        {/* Left branch */}
-        <G fill={color}>
-          <Path
-            d="M 28 50 C 17 48 10 38 10 27 C 10 17 18 9 27 7"
-            stroke={color}
-            strokeWidth={1.8}
-            strokeLinecap="round"
-            fill="none"
-          />
-          <Path d="M 25 48 C 21 49 17 48 15 45 C 18 44 22 45 25 48 Z" />
-          <Path d="M 26 44 C 22 44 19 41 20 37 C 23 39 26 41 26 44 Z" />
-          <Path d="M 19 38 C 14 38 11 36 10 33 C 14 32 17 34 19 38 Z" />
-          <Path d="M 18 33 C 14 31 12 28 13 24 C 16 26 18 29 18 33 Z" />
-          <Path d="M 13 26 C 8 25 6 22 7 19 C 10 19 13 21 13 26 Z" />
-          <Path d="M 15 22 C 12 20 12 16 14 13 C 17 15 17 19 15 22 Z" />
-          <Path d="M 16 15 C 13 12 14 8 17 6 C 19 9 18 13 16 15 Z" />
-          <Path d="M 21 12 C 18 10 20 6 23 4 C 24 7 23 10 21 12 Z" />
-          <Path d="M 27 7 C 26 4 28 2 30 2 C 30 5 29 7 27 7 Z" />
-        </G>
-
-        {/* Right branch mirrored */}
-        <G transform="translate(60, 0) scale(-1, 1)" fill={color}>
-          <Path
-            d="M 28 50 C 17 48 10 38 10 27 C 10 17 18 9 27 7"
-            stroke={color}
-            strokeWidth={1.8}
-            strokeLinecap="round"
-            fill="none"
-          />
-          <Path d="M 25 48 C 21 49 17 48 15 45 C 18 44 22 45 25 48 Z" />
-          <Path d="M 26 44 C 22 44 19 41 20 37 C 23 39 26 41 26 44 Z" />
-          <Path d="M 19 38 C 14 38 11 36 10 33 C 14 32 17 34 19 38 Z" />
-          <Path d="M 18 33 C 14 31 12 28 13 24 C 16 26 18 29 18 33 Z" />
-          <Path d="M 13 26 C 8 25 6 22 7 19 C 10 19 13 21 13 26 Z" />
-          <Path d="M 15 22 C 12 20 12 16 14 13 C 17 15 17 19 15 22 Z" />
-          <Path d="M 16 15 C 13 12 14 8 17 6 C 19 9 18 13 16 15 Z" />
-          <Path d="M 21 12 C 18 10 20 6 23 4 C 24 7 23 10 21 12 Z" />
-          <Path d="M 27 7 C 26 4 28 2 30 2 C 30 5 29 7 27 7 Z" />
-        </G>
-
-        {/* Bottom knot */}
-        <Path d="M 27 50 Q 30 48 33 50 Q 30 52 27 50 Z" fill={color} />
-      </Svg>
-
-      {/* Bold Rank Number in Center */}
-      <Txt
-        size={numFontSize}
-        font="display"
-        style={{
-          color: numColor,
-          lineHeight: numFontSize + 4,
-          textShadowColor: "rgba(0, 0, 0, 0.9)",
-          textShadowOffset: { width: 0, height: 1 },
-          textShadowRadius: 3,
-        }}
-      >
-        {rank}
-      </Txt>
-    </View>
-  );
-}
 
 /* ──────────────────────────────────────────────────────────────────────────
    Leaderboard Main Screen
    ────────────────────────────────────────────────────────────────────────── */
+/**
+ * Ticking time-left string.
+ *
+ * The banner used to read a literal "23h 58m 41s" — the same number on every
+ * screen, every day. A prize window is the one thing on this page that is
+ * genuinely urgent, so it has to come off the competition's real deadline
+ * and actually move.
+ */
+function useCountdown(target?: string | null): string | null {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!target) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [target]);
+  if (!target) return null;
+  const end = new Date(target).getTime();
+  if (!Number.isFinite(end)) return null;
+  const ms = end - now;
+  if (ms <= 0) return "Ended";
+  const total = Math.floor(ms / 1000);
+  const d = Math.floor(total / 86400);
+  const h = Math.floor((total % 86400) / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const sec = total % 60;
+  if (d > 0) return `${d}d ${h}h ${m}m ${sec}s`;
+  return `${h}h ${m}m ${sec}s`;
+}
+
 export default function Leaderboard() {
   const { c } = useTheme();
   const router = useRouter();
@@ -253,7 +174,6 @@ export default function Leaderboard() {
   const [votingId, setVotingId] = useState<string | null>(null);
 
   // Entrance spring animations
-  const animPodium = useRef(new Animated.Value(0)).current;
   const animList = useRef(new Animated.Value(0)).current;
 
   // Clean legacy vote key
@@ -311,23 +231,13 @@ export default function Leaderboard() {
 
   // Entrance spring animation
   useEffect(() => {
-    animPodium.setValue(0);
     animList.setValue(0);
-
-    Animated.parallel([
-      Animated.spring(animPodium, {
-        toValue: 1,
-        tension: 36,
-        friction: 6.5,
-        useNativeDriver: true,
-      }),
-      Animated.timing(animList, {
-        toValue: 1,
-        duration: 380,
-        useNativeDriver: true,
-        delay: 150,
-      }),
-    ]).start();
+    Animated.timing(animList, {
+      toValue: 1,
+      duration: 420,
+      useNativeDriver: true,
+      delay: 260,
+    }).start();
   }, [sel, activeRound, lb.data]);
 
   // Compute effective rows
@@ -458,9 +368,58 @@ export default function Leaderboard() {
   };
 
   const selectedComp = list.find((c: any) => (c._id || c.id) === sel);
+
+  /* The window the prize actually closes on, in the order the backend fills
+     them: voting first, then submission, then the competition's own end. */
+  const deadline =
+    selectedComp?.voting_end ||
+    selectedComp?.submission_deadline ||
+    selectedComp?.end_date ||
+    selectedComp?.registration_deadline ||
+    null;
+  const timeLeft = useCountdown(deadline);
+
+  /* `prize` is free text from the CMS ("₹50,000", "Cash prizes up to ₹1L").
+     Print it as it was written and only add the words it is missing. */
+  const prizeRaw = String(
+    selectedComp?.prize ?? selectedComp?.prize_pool ?? selectedComp?.total_prize ?? ""
+  ).trim();
+  const prizeTitle = prizeRaw
+    ? /prize/i.test(prizeRaw)
+      ? prizeRaw
+      : `${prizeRaw} Prize Pool`
+    : selectedComp?.title || selectedComp?.name || "Live Rankings";
+  /* Share — built from the live standings: the member's own rank when they're
+     on the board, then the overall top three (not the active filter). */
+  const [shareOpen, setShareOpen] = useState(false);
+  const compTitle = selectedComp?.title || selectedComp?.name || "this competition";
+  const shareMessage = (() => {
+    const overall: Row[] = ((lb.data as any)?.leaderboard as Row[]) || rawRows;
+    const podium = overall
+      .slice(0, 3)
+      .map((r, i) => `${["🥇", "🥈", "🥉"][i]} ${r.name || "Contestant"}`)
+      .join("\n");
+    const head = myStanding
+      ? `I'm ranked #${myStanding.rank} in ${compTitle} on Upgrade Talents India! Cast your vote 🗳️`
+      : `${compTitle} is live on Upgrade Talents India — check the leaderboard and vote for your favourite! 🏆`;
+    return podium ? `${head}\n\n${podium}` : head;
+  })();
+
   const top1 = filteredRows[0] || null;
   const top2 = filteredRows[1] || null;
   const top3 = filteredRows[2] || null;
+
+  /** A podium slot from a real leaderboard row — nothing invented. */
+  const toEntry = (r: Row | null): PodiumEntry =>
+    r
+      ? {
+          key: pidOf(r) || r.name || "",
+          name: r.name || "Contestant",
+          avatar: getAvatarSource(r.profile_photo, r.participant_id || r.email),
+          score: formatScore(r.final_score ?? voteCount(r)),
+          badge: <VerifiedTick row={r} size={12} />,
+        }
+      : null;
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -495,26 +454,45 @@ export default function Leaderboard() {
             Leaderboard
           </Txt>
           {selectedComp ? (
-            <Txt size={11} tone="subtle" numberOfLines={1} style={{ maxWidth: 200, marginTop: 1 }}>
+            <Txt size={11} tone="subtle" numberOfLines={1} style={{ marginTop: 1 }}>
               {selectedComp.title || selectedComp.name}
             </Txt>
           ) : null}
         </View>
 
-        <Pressable
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-            playNavFeedback();
-            setFilterModalOpen(true);
-          }}
-          hitSlop={12}
-          style={({ pressed }) => [
-            styles.headerBtn,
-            { transform: [{ scale: pressed ? 0.92 : 1 }] },
-          ]}
-        >
-          <SlidersHorizontal size={18} color="#FFFFFF" />
-        </Pressable>
+        <View style={styles.headerRight}>
+          {sel ? (
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                setShareOpen(true);
+              }}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Share leaderboard"
+              style={({ pressed }) => [
+                styles.headerBtn,
+                { transform: [{ scale: pressed ? 0.92 : 1 }] },
+              ]}
+            >
+              <Share2 size={17} color="#FFFFFF" />
+            </Pressable>
+          ) : null}
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+              playNavFeedback();
+              setFilterModalOpen(true);
+            }}
+            hitSlop={8}
+            style={({ pressed }) => [
+              styles.headerBtn,
+              { transform: [{ scale: pressed ? 0.92 : 1 }] },
+            ]}
+          >
+            <SlidersHorizontal size={18} color="#FFFFFF" />
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView
@@ -569,39 +547,44 @@ export default function Leaderboard() {
           </ScrollView>
         )}
 
-        {/* Round Chips */}
+        {/* Round switch — the reference's Daily / Weekly / All-time control,
+            carrying this competition's real rounds. Equal segments on one
+            dark track, the selected one lifted out of it. */}
         {rounds.length > 1 && (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.roundListPills}
+            contentContainerStyle={{ paddingHorizontal: 20 }}
           >
-            {rounds.map((rnd: any) => {
-              const rNum = rnd.round_number;
-              const on = activeRound === rNum;
-              return (
-                <Pressable
-                  key={rNum}
-                  onPress={() => {
-                    Haptics.selectionAsync().catch(() => {});
-                    playNavFeedback();
-                    setActiveRound(rNum);
-                  }}
-                  style={[
-                    styles.roundPill,
-                    {
-                      backgroundColor: on ? "rgba(16, 185, 129, 0.15)" : "rgba(255, 255, 255, 0.05)",
-                      borderColor: on ? "#10B981" : "transparent",
-                    },
-                  ]}
-                >
-                  <Sparkles size={11} color={on ? "#10B981" : "#9EA3B8"} />
-                  <Txt size={11.5} font="sansBold" style={{ color: on ? "#10B981" : "#9EA3B8" }}>
-                    {rnd.round_name || `Round ${rNum}`}
-                  </Txt>
-                </Pressable>
-              );
-            })}
+            <View style={styles.segTrack}>
+              {rounds.map((rnd: any) => {
+                const rNum = rnd.round_number;
+                const on = activeRound === rNum;
+                return (
+                  <Pressable
+                    key={rNum}
+                    onPress={() => {
+                      Haptics.selectionAsync().catch(() => {});
+                      setActiveRound(rNum);
+                    }}
+                    style={({ pressed }) => [
+                      styles.segItem,
+                      on && styles.segItemOn,
+                      { transform: [{ scale: pressed ? 0.96 : 1 }] },
+                    ]}
+                  >
+                    <Txt
+                      size={13}
+                      font="sansBold"
+                      numberOfLines={1}
+                      style={{ color: on ? "#FFFFFF" : "rgba(255,255,255,0.45)" }}
+                    >
+                      {rnd.round_name || `Round ${rNum}`}
+                    </Txt>
+                  </Pressable>
+                );
+              })}
+            </View>
           </ScrollView>
         )}
 
@@ -706,210 +689,50 @@ export default function Leaderboard() {
             {/* ══════════════════════════════════════════════════════════
                 TOP 3 3D ISOMETRIC GLASS PEDESTAL PODIUM
                ══════════════════════════════════════════════════════════ */}
-            <Animated.View
-              style={[
-                styles.podiumWrapper,
-                {
-                  transform: [
-                    {
-                      translateY: animPodium.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [40, 0],
-                      }),
-                    },
-                  ],
-                  opacity: animPodium,
-                },
-              ]}
-            >
-              <View style={styles.podiumClusterRow}>
-                {/* ── PEDESTAL 2 (Left - Rank 2 - Silver) ── */}
-                <View style={[styles.pedestalCol, { zIndex: 2, marginRight: -8 }]}>
-                  {top2 ? (
-                    <View style={styles.pedestalColInner}>
-                      {/* Floating Avatar + Name + Score */}
-                      <View style={[styles.avatarRing, { borderColor: "#EC4899", width: 54, height: 54, shadowColor: "#EC4899" }]}>
-                        <Image
-                          source={getAvatarSource(top2.profile_photo, top2.participant_id || 2)}
-                          style={styles.avatarImg}
-                          contentFit="cover"
-                        />
-                      </View>
-                      <Txt size={12} font="sansBold" numberOfLines={1} style={styles.contestantName}>
-                        {top2.name || "Contestant"}
-                      </Txt>
-                      <View style={styles.scorePill}>
-                        <GreenDiamond size={9} />
-                        <Txt size={11} font="sansBold" style={{ color: "#10B981" }}>
-                          {formatScore(top2.final_score ?? voteCount(top2))}
-                        </Txt>
-                      </View>
-
-                      {/* 3D Glass Block 2 */}
-                      <View style={[styles.glassBlockWrap, { width: 104 }]}>
-                        {/* Isometric Diamond Top Surface */}
-                        <Svg width={104} height={22} viewBox="0 0 104 22">
-                          <Polygon
-                            points="52,2 102,11 52,20 2,11"
-                            fill="rgba(203, 213, 225, 0.08)"
-                            stroke="rgba(203, 213, 225, 0.45)"
-                            strokeWidth={1.4}
-                          />
-                        </Svg>
-                        {/* Front Face with Silver Wreath & 2 */}
-                        <View style={[styles.glassBlockFront, { height: 92, borderColor: "rgba(203, 213, 225, 0.25)" }]}>
-                          <LinearGradient
-                            colors={["rgba(203, 213, 225, 0.12)", "rgba(18, 19, 32, 0.95)", "rgba(9, 10, 18, 0.98)"]}
-                            start={{ x: 0.5, y: 0 }}
-                            end={{ x: 0.5, y: 1 }}
-                            style={StyleSheet.absoluteFill}
-                          />
-                          <PodiumWreath rank={2} size={46} />
-                        </View>
-                      </View>
-                    </View>
-                  ) : null}
-                </View>
-
-                {/* ── PEDESTAL 1 (Center - Rank 1 - Champion - ELEVATED) ── */}
-                <View style={[styles.pedestalCol, { zIndex: 10, marginTop: -26 }]}>
-                  {top1 ? (
-                    <View style={styles.pedestalColInner}>
-                      {/* Floating Avatar (LARGER with Cyan Glow Ring) */}
-                      <View
-                        style={[
-                          styles.avatarRing,
-                          {
-                            borderColor: "#06B6D4",
-                            width: 64,
-                            height: 64,
-                            shadowColor: "#06B6D4",
-                            shadowOpacity: 0.8,
-                            shadowRadius: 12,
-                          },
-                        ]}
-                      >
-                        <Image
-                          source={getAvatarSource(top1.profile_photo, top1.participant_id || 1)}
-                          style={styles.avatarImg}
-                          contentFit="cover"
-                        />
-                      </View>
-                      <Txt size={13.5} font="sansBold" numberOfLines={1} style={styles.contestantName}>
-                        {top1.name || "Contestant"}
-                      </Txt>
-                      <View style={[styles.scorePill, { backgroundColor: "rgba(16, 185, 129, 0.22)", borderColor: "rgba(16, 185, 129, 0.45)" }]}>
-                        <GreenDiamond size={10} />
-                        <Txt size={12} font="sansExt" style={{ color: "#10B981" }}>
-                          {formatScore(top1.final_score ?? voteCount(top1))}
-                        </Txt>
-                      </View>
-
-                      {/* 3D Glass Block 1 (Gold Neon Wireframe Top & Glowing Gold Wreath 1) */}
-                      <View style={[styles.glassBlockWrap, { width: 120 }]}>
-                        {/* Glowing Golden Neon Wireframe Top */}
-                        <Svg width={120} height={26} viewBox="0 0 120 26">
-                          <Polygon
-                            points="60,2 118,13 60,24 2,13"
-                            fill="rgba(245, 158, 11, 0.16)"
-                            stroke="#FBBF24"
-                            strokeWidth={2}
-                          />
-                        </Svg>
-                        {/* Front Face with Golden Glowing Wreath & 1 */}
-                        <View
-                          style={[
-                            styles.glassBlockFront,
-                            {
-                              height: 114,
-                              borderColor: "rgba(245, 158, 11, 0.5)",
-                              borderWidth: 1.5,
-                            },
-                          ]}
-                        >
-                          <LinearGradient
-                            colors={["rgba(245, 158, 11, 0.24)", "rgba(20, 20, 32, 0.95)", "rgba(10, 11, 18, 0.98)"]}
-                            start={{ x: 0.5, y: 0 }}
-                            end={{ x: 0.5, y: 1 }}
-                            style={StyleSheet.absoluteFill}
-                          />
-                          <PodiumWreath rank={1} size={58} showAura />
-                        </View>
-                      </View>
-                    </View>
-                  ) : null}
-                </View>
-
-                {/* ── PEDESTAL 3 (Right - Rank 3 - Bronze) ── */}
-                <View style={[styles.pedestalCol, { zIndex: 2, marginLeft: -8 }]}>
-                  {top3 ? (
-                    <View style={styles.pedestalColInner}>
-                      {/* Floating Avatar + Name + Score */}
-                      <View style={[styles.avatarRing, { borderColor: "#F59E0B", width: 50, height: 50, shadowColor: "#F59E0B" }]}>
-                        <Image
-                          source={getAvatarSource(top3.profile_photo, top3.participant_id || 3)}
-                          style={styles.avatarImg}
-                          contentFit="cover"
-                        />
-                      </View>
-                      <Txt size={12} font="sansBold" numberOfLines={1} style={styles.contestantName}>
-                        {top3.name || "Contestant"}
-                      </Txt>
-                      <View style={styles.scorePill}>
-                        <GreenDiamond size={9} />
-                        <Txt size={11} font="sansBold" style={{ color: "#10B981" }}>
-                          {formatScore(top3.final_score ?? voteCount(top3))}
-                        </Txt>
-                      </View>
-
-                      {/* 3D Glass Block 3 */}
-                      <View style={[styles.glassBlockWrap, { width: 104 }]}>
-                        {/* Isometric Diamond Top Surface */}
-                        <Svg width={104} height={22} viewBox="0 0 104 22">
-                          <Polygon
-                            points="52,2 102,11 52,20 2,11"
-                            fill="rgba(217, 119, 6, 0.08)"
-                            stroke="rgba(217, 119, 6, 0.45)"
-                            strokeWidth={1.4}
-                          />
-                        </Svg>
-                        {/* Front Face with Bronze Wreath & 3 */}
-                        <View style={[styles.glassBlockFront, { height: 86, borderColor: "rgba(217, 119, 6, 0.25)" }]}>
-                          <LinearGradient
-                            colors={["rgba(217, 119, 6, 0.12)", "rgba(18, 19, 32, 0.95)", "rgba(9, 10, 18, 0.98)"]}
-                            start={{ x: 0.5, y: 0 }}
-                            end={{ x: 0.5, y: 1 }}
-                            style={StyleSheet.absoluteFill}
-                          />
-                          <PodiumWreath rank={3} size={44} />
-                        </View>
-                      </View>
-                    </View>
-                  ) : null}
-                </View>
-              </View>
-            </Animated.View>
+            {/* The blocks rise out of the floor on their own; replays when the
+                competition, round or category changes — not after a vote. */}
+            <View style={styles.podiumWrapper}>
+              <Podium
+                width={SCREEN_W}
+                first={toEntry(top1)}
+                second={toEntry(top2)}
+                third={toEntry(top3)}
+                replayKey={`${sel}|${activeRound}|${activeCategory}`}
+              />
+            </View>
 
             {/* ══════════════════════════════════════════════════════════
                 SPOTLIGHT PRIZE POOL BANNER (Matching Screenshot)
                ══════════════════════════════════════════════════════════ */}
             <View style={styles.spotlightBanner}>
-              <Pressable hitSlop={8} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                <Txt size={12} font="sansBold" style={{ color: "#FBBF24" }}>
+              <Pressable
+                hitSlop={8}
+                onPress={() => {
+                  if (sel) router.push(`/(more)/competitions/${sel}`);
+                }}
+              >
+                <Txt size={13} font="sansBold" style={styles.howItWorks}>
                   See how it works
                 </Txt>
               </Pressable>
 
-              <Txt size={24} font="display" style={{ color: "#FFFFFF", marginTop: 2, letterSpacing: -0.4 }}>
-                {selectedComp ? selectedComp.title || selectedComp.name : "Prize Pool"}
+              <Txt
+                size={30}
+                font="display"
+                numberOfLines={2}
+                style={styles.prizeTitle}
+              >
+                {prizeTitle}
               </Txt>
 
-              <View style={styles.timeRow}>
-                <Clock size={12} color="#94A3B8" />
-                <Txt size={11.5} tone="subtle">
-                  Ends in: 23h 58m 41s • Live Rankings
-                </Txt>
-              </View>
+              {timeLeft ? (
+                <View style={styles.timeRow}>
+                  <Clock size={13} color="#8A90A6" />
+                  <Txt size={12.5} font="sansMed" style={{ color: "#8A90A6" }}>
+                    {timeLeft === "Ended" ? "Entries closed" : `Ends in: ${timeLeft}`}
+                  </Txt>
+                </View>
+              ) : null}
             </View>
 
             {/* ══════════════════════════════════════════════════════════
@@ -943,7 +766,7 @@ export default function Leaderboard() {
                     USER
                   </Txt>
                 </View>
-                <View style={{ width: 85, alignItems: "flex-end", paddingRight: 10 }}>
+                <View style={{ width: 64, alignItems: "flex-end", paddingRight: 10 }}>
                   <Txt size={10.5} font="sansBold" style={styles.headerLabel}>
                     SCORE
                   </Txt>
@@ -964,15 +787,11 @@ export default function Leaderboard() {
                     <View key={r.participant_id || r.email || i} style={styles.tableRow}>
                       {/* 1. RANK BADGE (Laurel Wreath for 1,2,3; Dark circle for 4+) */}
                       <View style={{ width: 44, alignItems: "center", justifyContent: "center" }}>
-                        {rankNum === 1 ? (
-                          <PodiumWreath rank={1} size={32} />
-                        ) : rankNum === 2 ? (
-                          <PodiumWreath rank={2} size={32} />
-                        ) : rankNum === 3 ? (
-                          <PodiumWreath rank={3} size={32} />
+                        {rankNum <= 3 ? (
+                          <RankLaurel rank={rankNum} size={42} medal />
                         ) : (
                           <View style={styles.tableNumCircle}>
-                            <Txt size={12} font="sansBold" style={{ color: "#94A3B8" }}>
+                            <Txt size={12.5} font="sansBold" style={{ color: "#E2E8F0" }}>
                               {rankNum}
                             </Txt>
                           </View>
@@ -989,19 +808,22 @@ export default function Leaderboard() {
                           />
                         </View>
                         <View style={{ flex: 1, marginLeft: 10 }}>
-                          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                          {/* Full name, wrapping onto as many lines as it needs —
+                              never cut off with an ellipsis. */}
+                          <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 4 }}>
                             <Txt
                               size={13.5}
                               font="sansBold"
-                              numberOfLines={1}
-                              style={{ color: "#FFFFFF", flexShrink: 1 }}
+                              style={{ color: "#FFFFFF", flexShrink: 1, lineHeight: 18 }}
                             >
                               {r.name || "Contestant"}
                             </Txt>
-                            <VerifiedTick row={r} size={11} />
+                            <View style={{ marginTop: 3 }}>
+                              <VerifiedTick row={r} size={11} />
+                            </View>
                           </View>
                           {r.category ? (
-                            <Txt size={10} tone="subtle" numberOfLines={1}>
+                            <Txt size={10} tone="subtle" style={{ marginTop: 1 }}>
                               {r.category}
                             </Txt>
                           ) : null}
@@ -1009,7 +831,7 @@ export default function Leaderboard() {
                       </View>
 
                       {/* 3. SCORE COLUMN */}
-                      <View style={{ width: 85, alignItems: "flex-end", paddingRight: 10 }}>
+                      <View style={{ width: 64, alignItems: "flex-end", paddingRight: 10 }}>
                         <Txt size={13.5} font="sansExt" style={{ color: "#FFFFFF" }}>
                           {formatScore(r.final_score ?? voteCount(r))}
                         </Txt>
@@ -1113,6 +935,15 @@ export default function Leaderboard() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <ShareSheet
+        visible={shareOpen}
+        title="Share leaderboard"
+        subtitle={compTitle}
+        message={shareMessage}
+        url={`https://upgradetalentsindia.in/leaderboard?competition=${sel ?? ""}`}
+        onClose={() => setShareOpen(false)}
+      />
     </View>
   );
 }
@@ -1147,8 +978,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  /* Absolutely centred so the title stays in the middle even though the
+     right side carries two buttons and the left only one. */
   headerTitleWrap: {
+    position: "absolute",
+    left: 112,
+    right: 112,
+    top: 0,
+    bottom: 0,
     alignItems: "center",
+    justifyContent: "center",
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   scrollContent: {
     paddingTop: 8,
@@ -1259,79 +1103,58 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  podiumClusterRow: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    justifyContent: "center",
-  },
-  pedestalCol: {
-    alignItems: "center",
-  },
-  pedestalColInner: {
-    alignItems: "center",
-  },
-  avatarRing: {
-    borderRadius: 999,
-    overflow: "hidden",
-    backgroundColor: "#161724",
-    borderWidth: 2.5,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.6,
-    shadowRadius: 8,
-    zIndex: 12,
-  },
   avatarImg: {
     width: "100%",
     height: "100%",
   },
-  contestantName: {
-    color: "#FFFFFF",
-    marginTop: 4,
-    textAlign: "center",
-    maxWidth: 95,
-  },
-  scorePill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.3)",
-    paddingHorizontal: 7,
-    paddingVertical: 2.5,
-    borderRadius: 999,
-    marginTop: 3,
-    marginBottom: 6,
-  },
-  glassBlockWrap: {
-    alignItems: "center",
-  },
-  glassBlockFront: {
-    width: "100%",
-    marginTop: -8,
-    borderBottomLeftRadius: 14,
-    borderBottomRightRadius: 14,
-    borderLeftWidth: 1.2,
-    borderRightWidth: 1.2,
-    borderBottomWidth: 1.2,
-    borderTopWidth: 0,
-    overflow: "hidden",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingBottom: 4,
-  },
 
   /* ── Spotlight Banner ── */
+  /* Pulled up so the link sits on the fading foot of the champion's block. */
   spotlightBanner: {
     paddingHorizontal: 20,
-    marginTop: 20,
-    marginBottom: 10,
+    marginTop: -Math.round(SCREEN_W * 0.1),
+    marginBottom: 14,
+    alignItems: "center",
+  },
+  howItWorks: {
+    color: "#F5C542",
+    textDecorationLine: "underline",
+    textDecorationColor: "#F5C542",
+  },
+  prizeTitle: {
+    color: "#FFFFFF",
+    marginTop: 8,
+    letterSpacing: -0.6,
+    textAlign: "center",
+    textShadowColor: "rgba(0,0,0,0.6)",
+    textShadowRadius: 8,
+  },
+  /* Segmented round switch — one dark track, the active round raised out of
+     it. Scrolls instead of shrinking when a competition has many rounds. */
+  segTrack: {
+    flexDirection: "row",
+    alignSelf: "center",
+    marginTop: 4,
+    marginBottom: 16,
+    backgroundColor: "rgba(255,255,255,0.055)",
+    borderRadius: 999,
+    padding: 4,
+    gap: 4,
+  },
+  segItem: {
+    height: 36,
+    paddingHorizontal: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 999,
+  },
+  segItemOn: {
+    backgroundColor: "rgba(255,255,255,0.13)",
   },
   timeRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 5,
     marginTop: 4,
   },
@@ -1382,12 +1205,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   tableNumCircle: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "#151824",
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 255, 255, 0.16)",
     alignItems: "center",
     justifyContent: "center",
   },
