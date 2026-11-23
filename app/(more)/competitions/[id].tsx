@@ -280,7 +280,12 @@ export default function CompetitionDetail() {
         <Pressable
           onPress={() => {
             setShareOpen(true);
-            competeApi.share(String(id)).then(setShareData).catch(() => {});
+            // universal share resolver first; the per-competition endpoint is the fallback
+            publicApi
+              .shareCompetition(String(id))
+              .catch(() => competeApi.share(String(id)))
+              .then(setShareData)
+              .catch(() => {});
           }}
           hitSlop={8}
           style={{
@@ -306,6 +311,12 @@ export default function CompetitionDetail() {
             message={shareData?.share_text || `Check out ${comp.title || comp.name || "this competition"} on Upgrade Talents India! Compete, win cash prizes & perform live on stage.`}
             url={shareData?.share_url || shareData?.page_url || shareData?.registration_url || `https://upgradetalentsindia.in/competitions/${id}`}
             onClose={() => setShareOpen(false)}
+            links={shareData?.social_share_links}
+            card={{
+              image: shareData?.image_url || comp.image_url || comp.banner_url,
+              title: shareData?.title || comp.title || comp.name || "Competition",
+              meta: shareData?.category || comp.category || (comp.prize ? `Prize pool ${comp.prize}` : null),
+            }}
           />
         </>
       }

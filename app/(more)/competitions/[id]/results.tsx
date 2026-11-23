@@ -9,7 +9,7 @@ import { useAudioPlayer } from "expo-audio";
 import { SubScreen } from "@/components/SubScreen";
 import { useTheme } from "@/theme/ThemeProvider";
 import { useSession } from "@/context/Session";
-import { competeApi, publicCompetitionsApi, extrasApi, assetUrl, safe } from "@/lib/api";
+import { competeApi, publicCompetitionsApi, publicApi, extrasApi, assetUrl, safe, type ShareLinkData } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
 import { Txt, Skeleton, EmptyState, Button } from "@/components/ui";
 import { Avatar } from "@/components/Avatar";
@@ -115,7 +115,11 @@ export default function CompetitionResults() {
   /* Share — the message is built from the published results themselves:
      the member's own placing when they're in it, otherwise the top three. */
   const [shareOpen, setShareOpen] = useState(false);
-  const shareUrl = `https://upgradetalentsindia.in/competitions/${id}/results`;
+  const [shareData, setShareData] = useState<ShareLinkData | null>(null);
+  // The site's results page, off the backend's page_url (honours its FRONTEND_URL).
+  const shareUrl = shareData?.page_url
+    ? `${shareData.page_url.replace(/\/$/, "")}/results`
+    : `https://upgradetalentsindia.in/competitions/${id}/results`;
   const shareMessage = (() => {
     // overall top three — not whatever category filter happens to be on
     const podium = allRows
@@ -151,7 +155,10 @@ export default function CompetitionResults() {
       right={
         published ? (
           <Pressable
-            onPress={() => setShareOpen(true)}
+            onPress={() => {
+              setShareOpen(true);
+              publicApi.shareCompetition(String(id)).then(setShareData).catch(() => {});
+            }}
             hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel="Share results"
@@ -168,6 +175,11 @@ export default function CompetitionResults() {
           subtitle={title}
           message={shareMessage}
           url={shareUrl}
+          card={{
+            image: shareData?.image_url || comp.data?.image_url || comp.data?.banner_url,
+            title: `${title} — Official results`,
+            meta: first ? `Winner: ${rowName(first)}` : null,
+          }}
           onClose={() => setShareOpen(false)}
         />
       }

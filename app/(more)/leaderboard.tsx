@@ -31,7 +31,7 @@ import {
   Share2,
 } from "lucide-react-native";
 import { useTheme } from "@/theme/ThemeProvider";
-import { publicApi, competeApi, safe, toRows } from "@/lib/api";
+import { publicApi, competeApi, safe, toRows, type ShareLinkData } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
 import { useSession } from "@/context/Session";
 import { Txt, Skeleton, EmptyState } from "@/components/ui";
@@ -392,6 +392,9 @@ export default function Leaderboard() {
   /* Share — built from the live standings: the member's own rank when they're
      on the board, then the overall top three (not the active filter). */
   const [shareOpen, setShareOpen] = useState(false);
+  const [shareData, setShareData] = useState<ShareLinkData | null>(null);
+  // Site origin from the backend's page_url (honours its FRONTEND_URL).
+  const siteOrigin = /^https?:\/\/[^/]+/i.exec(shareData?.page_url || "")?.[0] || "https://upgradetalentsindia.in";
   const compTitle = selectedComp?.title || selectedComp?.name || "this competition";
   const shareMessage = (() => {
     const overall: Row[] = ((lb.data as any)?.leaderboard as Row[]) || rawRows;
@@ -466,6 +469,7 @@ export default function Leaderboard() {
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
                 setShareOpen(true);
+                if (sel) publicApi.shareCompetition(String(sel)).then(setShareData).catch(() => {});
               }}
               hitSlop={8}
               accessibilityRole="button"
@@ -941,7 +945,12 @@ export default function Leaderboard() {
         title="Share leaderboard"
         subtitle={compTitle}
         message={shareMessage}
-        url={`https://upgradetalentsindia.in/leaderboard?competition=${sel ?? ""}`}
+        url={`${siteOrigin}/leaderboard?competition=${sel ?? ""}`}
+        card={{
+          image: shareData?.image_url || selectedComp?.image_url || selectedComp?.banner_url,
+          title: `${compTitle} — Live leaderboard`,
+          meta: top1 ? `Leading: ${top1.name || "Contestant"}` : null,
+        }}
         onClose={() => setShareOpen(false)}
       />
     </View>

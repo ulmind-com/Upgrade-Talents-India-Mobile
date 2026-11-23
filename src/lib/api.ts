@@ -410,6 +410,39 @@ export type MyTicket = {
 /* ═══════════════════════════════════════════════════════════
    USER / PUBLIC API  (frontend)
    ═══════════════════════════════════════════════════════════ */
+/** `GET /share/{event|competition}/{id}?json=true` — ShareLinkResponse. */
+export type ShareLinkData = {
+  id?: string;
+  type?: string;
+  item_type?: string;
+  title?: string;
+  venue?: string;
+  date?: string;
+  time?: string;
+  category?: string;
+  categories?: string[];
+  image_url?: string;
+  page_url?: string;
+  share_url?: string;
+  direct_action_url?: string;
+  ticket_booking_url?: string;
+  direct_booking_url?: string;
+  registration_url?: string;
+  direct_registration_url?: string;
+  share_redirect_url?: string;
+  action_type?: string;
+  share_text?: string;
+  social_share_links?: ShareSocialLinks;
+};
+export type ShareSocialLinks = {
+  whatsapp?: string;
+  facebook?: string;
+  twitter?: string;
+  x?: string;
+  linkedin?: string;
+  telegram?: string;
+};
+
 export const publicApi = {
   /* Each v1 call falls back to its /api/public mirror if v1 is unavailable. */
   homepage: () => apiFetch<HomepagePayload>("/api/v1/homepage").catch(() => apiFetch<HomepagePayload>("/api/public/homepage")),
@@ -430,11 +463,11 @@ export const publicApi = {
     apiFetch<any[]>("/api/v1/competitions/upcoming", { query: p }).catch(() => apiFetch<any[]>("/api/public/competitions/upcoming", { query: p })),
   /** Universal share resolver → structured share links + social metadata (json=true). */
   shareEvent: (eventId: string) =>
-    apiFetch<any>(`/api/v1/share/event/${encodeURIComponent(eventId)}`, { query: { json: true } })
-      .catch(() => apiFetch<any>(`/api/public/share/event/${encodeURIComponent(eventId)}`, { query: { json: true } })),
+    apiFetch<ShareLinkData>(`/api/v1/share/event/${encodeURIComponent(eventId)}`, { query: { json: true } })
+      .catch(() => apiFetch<ShareLinkData>(`/api/public/share/event/${encodeURIComponent(eventId)}`, { query: { json: true } })),
   shareCompetition: (compId: string) =>
-    apiFetch<any>(`/api/v1/share/competition/${encodeURIComponent(compId)}`, { query: { json: true } })
-      .catch(() => apiFetch<any>(`/api/public/share/competition/${encodeURIComponent(compId)}`, { query: { json: true } })),
+    apiFetch<ShareLinkData>(`/api/v1/share/competition/${encodeURIComponent(compId)}`, { query: { json: true } })
+      .catch(() => apiFetch<ShareLinkData>(`/api/public/share/competition/${encodeURIComponent(compId)}`, { query: { json: true } })),
   courses: (p: { skip?: number; limit?: number } = {}) =>
     apiFetch<CourseItem[]>("/api/v1/courses", { query: p }).catch(() => apiFetch<CourseItem[]>("/api/public/courses", { query: p })),
   workshops: (p: { skip?: number; limit?: number } = {}) =>

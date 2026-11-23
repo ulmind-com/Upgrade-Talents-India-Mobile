@@ -222,6 +222,12 @@ export default function EventDetail() {
         subtitle={ev.title}
         message={shareData?.share_text || `Check out ${ev.title} on Upgrade Talents — ${formatEventDate(ev.date)}${ev.venue ? ` at ${ev.venue}` : ""}.`}
         url={shareData?.share_url || shareData?.page_url || shareData?.ticket_booking_url || `https://upgradetalentsindia.in/events/${ev._id}`}
+        links={shareData?.social_share_links}
+        card={{
+          image: shareData?.image_url || ev.image_url,
+          title: shareData?.title || ev.title,
+          meta: [formatEventDate(ev.date), shareData?.venue || ev.venue].filter(Boolean).join(" · "),
+        }}
       />
 
       {/* Sticky booking bar — District style */}

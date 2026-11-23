@@ -8,7 +8,9 @@ import * as Sharing from "expo-sharing";
 import * as Haptics from "expo-haptics";
 import Svg, { Path } from "react-native-svg";
 import { Link2, FileDown, MoreHorizontal, Check, X } from "lucide-react-native";
+import { Image } from "expo-image";
 import { useTheme } from "@/theme/ThemeProvider";
+import { assetUrl, type ShareSocialLinks } from "@/lib/api";
 import { Txt } from "@/components/ui";
 import { playNavFeedback } from "@/lib/sound";
 
@@ -27,6 +29,8 @@ const GLYPH = {
     "M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z",
   instagram:
     "M12 0C8.74 0 8.333.015 7.053.072 5.775.132 4.905.333 4.14.63c-.788.306-1.459.717-2.126 1.384S.935 3.35.63 4.14C.333 4.905.131 5.775.072 7.053.012 8.333 0 8.74 0 12s.015 3.667.072 4.947c.06 1.277.261 2.148.558 2.913.306.788.717 1.459 1.384 2.126.667.666 1.336 1.079 2.126 1.384.766.296 1.636.499 2.913.558C8.333 23.988 8.74 24 12 24s3.667-.015 4.947-.072c1.277-.06 2.148-.262 2.913-.558.788-.306 1.459-.718 2.126-1.384.666-.667 1.079-1.335 1.384-2.126.296-.765.499-1.636.558-2.913.06-1.28.072-1.687.072-4.947s-.015-3.667-.072-4.947c-.06-1.277-.262-2.149-.558-2.913-.306-.788-.718-1.459-1.384-2.126C21.319 1.347 20.651.935 19.86.63c-.765-.297-1.636-.499-2.913-.558C15.667.012 15.26 0 12 0zm0 2.16c3.203 0 3.585.016 4.85.071 1.17.055 1.805.249 2.227.415.562.217.96.477 1.382.896.419.42.679.819.896 1.381.164.422.36 1.057.413 2.227.057 1.266.07 1.646.07 4.85s-.015 3.585-.074 4.85c-.061 1.17-.256 1.805-.421 2.227-.224.562-.479.96-.899 1.382-.419.419-.824.679-1.38.896-.42.164-1.065.36-2.235.413-1.274.057-1.649.07-4.859.07-3.211 0-3.586-.015-4.859-.074-1.171-.061-1.816-.256-2.236-.421-.569-.224-.96-.479-1.379-.899-.421-.419-.69-.824-.9-1.38-.165-.42-.359-1.065-.42-2.235-.045-1.26-.061-1.649-.061-4.844 0-3.196.016-3.586.061-4.861.061-1.17.255-1.814.42-2.234.21-.57.479-.96.9-1.381.419-.419.81-.689 1.379-.898.42-.166 1.051-.361 2.221-.421 1.275-.045 1.65-.06 4.859-.06l.045.03zm0 3.678a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4zm7.846-10.405a1.441 1.441 0 01-2.88 0 1.44 1.44 0 012.88 0z",
+  linkedin:
+    "M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 4.455v6.286zM5.337 7.433a2.062 2.062 0 1 1 0-4.125 2.062 2.062 0 0 1 0 4.125zM7.119 20.452H3.555V9h3.564v11.452z",
 } as const;
 
 const Brand = ({ d, size = 24 }: { d: string; size?: number }) => (
@@ -49,6 +53,8 @@ type ShareCtx = {
   text: string;
   url?: string;
   file?: { uri: string; mimeType?: string };
+  /** Ready-made share URLs from the backend's share resolver, when we have them. */
+  links?: ShareSocialLinks;
   note: (msg: string) => void;
 };
 
@@ -61,34 +67,43 @@ async function openWithFallback(appUrl: string, webUrl: string) {
   }
 }
 
-const joined = (ctx: ShareCtx) => (ctx.url ? `${ctx.text}\n${ctx.url}` : ctx.text);
+/** Message + link — the backend's share_text already ends with the link, so don't add it twice. */
+const joined = (ctx: ShareCtx) => (ctx.url && !ctx.text.includes(ctx.url) ? `${ctx.text}\n${ctx.url}` : ctx.text);
 
 const TARGETS: ShareTarget[] = [
   {
     key: "whatsapp", label: "WhatsApp", glyph: GLYPH.whatsapp, colors: ["#5BF08A", "#25D366", "#0E8A5F"],
     run: (ctx) => openWithFallback(
       `whatsapp://send?text=${encodeURIComponent(joined(ctx))}`,
-      `https://wa.me/?text=${encodeURIComponent(joined(ctx))}`
+      ctx.links?.whatsapp || `https://wa.me/?text=${encodeURIComponent(joined(ctx))}`
     ),
   },
   {
     key: "telegram", label: "Telegram", glyph: GLYPH.telegram, colors: ["#53D3FB", "#2AABEE", "#1278B8"],
     run: (ctx) => openWithFallback(
       `tg://msg?text=${encodeURIComponent(joined(ctx))}`,
-      `https://t.me/share/url?url=${encodeURIComponent(ctx.url || "")}&text=${encodeURIComponent(ctx.text)}`
+      ctx.links?.telegram || `https://t.me/share/url?url=${encodeURIComponent(ctx.url || "")}&text=${encodeURIComponent(ctx.text)}`
     ),
   },
   {
     key: "x", label: "X", glyph: GLYPH.x, colors: ["#3F3F46", "#18181B", "#000000"],
     run: (ctx) => openWithFallback(
       `twitter://post?message=${encodeURIComponent(joined(ctx))}`,
-      `https://twitter.com/intent/tweet?text=${encodeURIComponent(joined(ctx))}`
+      ctx.links?.x || ctx.links?.twitter || `https://x.com/intent/post?text=${encodeURIComponent(joined(ctx))}`
     ),
   },
   {
     key: "facebook", label: "Facebook", glyph: GLYPH.facebook, colors: ["#4293FF", "#1877F2", "#0B4FB8"],
     run: (ctx) => Linking.openURL(
-      `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(ctx.url || "https://upgradetalents.in")}&quote=${encodeURIComponent(ctx.text)}`
+      ctx.links?.facebook ||
+        `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(ctx.url || "https://upgradetalentsindia.in")}&quote=${encodeURIComponent(ctx.text)}`
+    ).catch(() => {}),
+  },
+  {
+    key: "linkedin", label: "LinkedIn", glyph: GLYPH.linkedin, colors: ["#2F8FE0", "#0A66C2", "#064A8F"],
+    run: (ctx) => Linking.openURL(
+      ctx.links?.linkedin ||
+        `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(ctx.url || "https://upgradetalentsindia.in")}`
     ).catch(() => {}),
   },
   {
@@ -110,7 +125,7 @@ const TARGETS: ShareTarget[] = [
  * its own clearly-labelled action rather than being silently dropped.
  */
 export function ShareSheet({
-  visible, onClose, title = "Share", subtitle, message, url, file, preview,
+  visible, onClose, title = "Share", subtitle, message, url, file, preview, links, card,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -120,6 +135,10 @@ export function ShareSheet({
   url?: string;
   file?: { uri: string; mimeType?: string; label?: string };
   preview?: React.ReactNode;
+  /** Backend social share URLs (share resolver). Only pass them when they point at `url`. */
+  links?: ShareSocialLinks;
+  /** Link-preview card: what the recipient will see. */
+  card?: { image?: string | null; title: string; meta?: string | null };
 }) {
   const { c, name } = useTheme();
   const insets = useSafeAreaInsets();
@@ -141,7 +160,7 @@ export function ShareSheet({
     }
   }, [visible]);
 
-  const ctx: ShareCtx = { text: message, url, file, note: setNote };
+  const ctx: ShareCtx = { text: message, url, file, links, note: setNote };
 
   const pick = async (t: ShareTarget) => {
     playNavFeedback();
@@ -212,7 +231,11 @@ export function ShareSheet({
             </Pressable>
           </View>
 
-          {preview ? <View style={{ paddingHorizontal: 22, marginTop: 14 }}>{preview}</View> : null}
+          {preview || card ? (
+            <View style={{ paddingHorizontal: 22, marginTop: 14 }}>
+              {preview || (card ? <LinkCard card={card} url={url} c={c} /> : null)}
+            </View>
+          ) : null}
 
           {/* destinations */}
           <View style={{ flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 14, paddingTop: 20, rowGap: 18 }}>
@@ -313,6 +336,33 @@ function Tile({
       </Pressable>
       <Txt size={11.5} font="sansSemi" tone="muted" numberOfLines={1}>{label}</Txt>
     </Animated.View>
+  );
+}
+
+const hostOf = (u?: string) => {
+  const m = u ? /^https?:\/\/([^/?#]+)/i.exec(u) : null;
+  return m ? m[1].replace(/^www\./, "") : null;
+};
+
+/** How the link will land in a chat — image, title, one line of context, the domain. */
+function LinkCard({ card, url, c }: { card: { image?: string | null; title: string; meta?: string | null }; url?: string; c: any }) {
+  const host = hostOf(url);
+  const img = card.image ? assetUrl(card.image) : undefined;
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 18, borderWidth: 1, borderColor: c.border, backgroundColor: c.surface, padding: 10 }}>
+      <View style={{ width: 64, height: 64, borderRadius: 12, overflow: "hidden", backgroundColor: c.surface2, alignItems: "center", justifyContent: "center" }}>
+        {img ? (
+          <Image source={{ uri: img }} style={{ width: "100%", height: "100%" }} contentFit="cover" transition={150} />
+        ) : (
+          <Link2 size={20} color={c.fgSubtle} />
+        )}
+      </View>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Txt size={14} font="sansBold" numberOfLines={2} lh={18}>{card.title}</Txt>
+        {card.meta ? <Txt size={12} tone="muted" numberOfLines={1}>{card.meta}</Txt> : null}
+        {host ? <Txt size={11} tone="subtle" numberOfLines={1} style={{ marginTop: 2 }}>{host}</Txt> : null}
+      </View>
+    </View>
   );
 }
 
