@@ -8,13 +8,52 @@ import { SubScreen } from "@/components/SubScreen";
 import { Txt, Skeleton, EmptyState } from "@/components/ui";
 import { AppImage, RatioImage } from "@/components/AppImage";
 import { LiveStage } from "@/components/LiveStage";
-import { liveApi, safe, type LiveCompetitionDetail } from "@/lib/api";
+import { liveApi, publicApi, publicCompetitionsApi, safe, type LiveCompetitionDetail, type LivePhase } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
 import { formatEventDate, titleCase } from "@/lib/format";
 import { PhaseChip, StatTile, RED, OK, AMBER, MUTED, SURFACE, HAIR } from "@/components/live/LiveBits";
 
 const W = Dimensions.get("window").width;
 const up = (v: any) => String(v || "").toUpperCase();
+
+async function fetchLiveCompetition(compId: string): Promise<LiveCompetitionDetail> {
+  try {
+    return await liveApi.competition(compId);
+  } catch (err: any) {
+    // Fallback strictly to other live/public backend endpoints if /live/competitions/{id}
+    // returns 404 while voting/judging is actively open before start_date.
+    const [listRes, detailRes, stageRes, lbRes] = await Promise.all([
+      safe(liveApi.competitions({ limit: 100 }), null),
+      safe(publicCompetitionsApi.detail(compId), null),
+      safe(liveApi.stage(compId), null),
+      safe(publicApi.leaderboard(compId), null),
+    ]);
+    const fromLiveList = (listRes?.items || []).find((x: any) => String(x._id || x.id) === compId);
+    const base = fromLiveList || detailRes;
+    if (!base) throw err;
+
+    const vOpen = !!base.audience_voting_enabled && up(base.voting_status) === "OPEN";
+    const jOpen = !!base.judge_scoring_enabled && up(base.judging_status) === "OPEN";
+    if (!fromLiveList && !vOpen && !jOpen) {
+      throw err;
+    }
+
+    const entries = Array.isArray((lbRes as any)?.leaderboard) ? (lbRes as any).leaderboard : [];
+    const votesSum = entries.reduce((acc: number, row: any) => acc + Number(row?.audience_votes ?? row?.votes ?? 0), 0);
+
+    return {
+      ...base,
+      live_stats: base.live_stats || {
+        total_registrations: Number(stageRes?.all_registered_count ?? base.registered_count ?? base.participant_count ?? 0),
+        total_submissions: Number(stageRes?.total_participants ?? entries.length ?? 0),
+        total_audience_votes: votesSum,
+      },
+      live_stage: base.live_stage || (stageRes
+        ? { stage_status: stageRes.stage_status, current_performer: stageRes.current_performer ?? null }
+        : { stage_status: "IDLE", current_performer: null }),
+    };
+  }
+}
 
 /**
  * A running competition as it happens (`/live/competitions/{id}`): its phase,
@@ -23,7 +62,7 @@ const up = (v: any) => String(v || "").toUpperCase();
 export default function LiveCompetitionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const q = useAsync(() => liveApi.competition(String(id)), [id]);
+  const q = useAsync(() => fetchLiveCompetition(String(id)), [id], { refetchOnFocus: true });
 
   // live counters — a silent poll (no skeleton, no pull-to-refresh spinner)
   const [polled, setPolled] = useState<LiveCompetitionDetail | null>(null);
@@ -31,7 +70,7 @@ export default function LiveCompetitionScreen() {
     setPolled(null);
     let alive = true;
     const t = setInterval(async () => {
-      const d = await safe(liveApi.competition(String(id)), null);
+      const d = await safe(fetchLiveCompetition(String(id)), null);
       if (alive && d) setPolled(d);
     }, 15000);
     return () => {
@@ -44,6 +83,13 @@ export default function LiveCompetitionScreen() {
   const stats = c?.live_stats || {};
   const votingOpen = !!c?.audience_voting_enabled && up(c?.voting_status) === "OPEN";
   const judgingOpen = !!c?.judge_scoring_enabled && up(c?.judging_status) === "OPEN";
+  const rawPhase = up(c?.live_phase);
+  const effectivePhase: LivePhase | undefined =
+    (!rawPhase || rawPhase === "UPCOMING") && votingOpen
+      ? "VOTING"
+      : (!rawPhase || rawPhase === "UPCOMING") && judgingOpen
+      ? "JUDGING"
+      : c?.live_phase;
   const title = c?.title || c?.name || "Competition";
   const openFull = () => router.push(`/(more)/competitions/${id}`);
   const openBoard = () => router.push({ pathname: "/(more)/leaderboard", params: { competition: String(id) } });
@@ -72,7 +118,7 @@ export default function LiveCompetitionScreen() {
             <RatioImage uri={compImage(c)} seed={c._id} fallbackRatio={COMP_POSTER_RATIO} />
             <LinearGradient colors={["rgba(11,11,14,0)", "rgba(11,11,14,0.85)"]} style={StyleSheet.absoluteFill} />
             <View style={s.heroBody}>
-              <PhaseChip phase={c.live_phase} solid />
+              <PhaseChip phase={effectivePhase} solid />
               <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 10, marginTop: 10 }}>
                 {c.category ? <Txt size={12} font="sansBold" style={{ color: "rgba(255,255,255,0.8)" }}>{c.category}</Txt> : null}
                 {c.venue ? (

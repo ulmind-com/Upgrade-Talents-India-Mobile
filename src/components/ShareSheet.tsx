@@ -194,7 +194,7 @@ export function ShareSheet({
 
   const more = async () => {
     playNavFeedback();
-    try { await RNShare.share({ message: joined(ctx) }); onClose(); } catch {}
+    try { await RNShare.share({ title, message: joined(ctx), url }); onClose(); } catch {}
   };
 
   if (!mounted) return null;

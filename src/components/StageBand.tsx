@@ -126,12 +126,26 @@ export function StageBand({ items, onExplore, bottomBleed = 0 }: {
 
         <StageGallery items={items} />
 
-        <View style={{ paddingHorizontal: 20 }}>
-          <Pressable onPress={onExplore} style={{ alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#FF385C", borderRadius: 999, paddingLeft: 20, paddingRight: 14, height: 50 }}>
-            <Txt size={14} font="sansBold" style={{ color: "#ffffff" }} uppercase tracking={1}>Open gallery</Txt>
-            <View style={{ width: 30, height: 30, borderRadius: 999, backgroundColor: "rgba(0,0,0,0.25)", alignItems: "center", justifyContent: "center" }}>
-              <ArrowRight size={16} color="#fff" />
-            </View>
+        <View style={{ paddingHorizontal: 20, marginTop: 6 }}>
+          <Pressable
+            onPress={onExplore}
+            style={({ pressed }) => ({
+              alignSelf: "flex-start",
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
+              backgroundColor: "rgba(255, 255, 255, 0.08)",
+              borderWidth: 1,
+              borderColor: "rgba(255, 255, 255, 0.16)",
+              borderRadius: 999,
+              paddingHorizontal: 16,
+              height: 38,
+              opacity: pressed ? 0.8 : 1,
+              transform: [{ scale: pressed ? 0.97 : 1 }],
+            })}
+          >
+            <Txt size={13} font="sansSemi" style={{ color: "#ffffff" }}>Open gallery</Txt>
+            <ArrowRight size={14} color={c.accent} />
           </Pressable>
         </View>
       </View>

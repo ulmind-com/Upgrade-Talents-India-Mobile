@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Pressable, ScrollView, Linking, StyleSheet } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { Radio, Trophy } from "lucide-react-native";
 import { SubScreen } from "@/components/SubScreen";
 import { Txt, Skeleton, EmptyState } from "@/components/ui";
@@ -66,6 +66,17 @@ export default function LiveHub() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const firstFocus = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (firstFocus.current) {
+        firstFocus.current = false;
+        return;
+      }
+      load(true);
+    }, [load])
+  );
 
   // keep the counts and the list honest while the screen is open
   useEffect(() => {

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Pressable, ScrollView, Share } from "react-native";
+import { View, Pressable, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
@@ -43,6 +43,7 @@ import { useSession } from "@/context/Session";
 import { bookingsApi, extrasApi, publicApi, safe, toRows } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
 import { Txt, Card, Button, Divider } from "@/components/ui";
+import { ShareSheet } from "@/components/ShareSheet";
 import { FadeInUp } from "@/components/FadeInUp";
 import { Avatar } from "@/components/Avatar";
 import { VerifiedTick, VerifiedName } from "@/components/VerifiedBadge";
@@ -94,18 +95,11 @@ export default function Profile() {
     router.push(route as any);
   };
 
-  const handleShareApp = async () => {
+  const [shareAppOpen, setShareAppOpen] = useState(false);
+
+  const handleShareApp = () => {
     playNavFeedback();
-    try {
-      await Share.share({
-        title: "Upgrade Talents India",
-        message:
-          "🌟 Download Upgrade Talents India — Discover live concerts, enter national talent auditions & get instant digital QR entry passes!\n\n📲 Get it on Google Play Store:\nhttps://play.google.com/store/apps/details?id=in.upgradetalents.app",
-        url: "https://play.google.com/store/apps/details?id=in.upgradetalents.app",
-      });
-    } catch (err) {
-      console.warn("Share failed:", err);
-    }
+    setShareAppOpen(true);
   };
 
   const navWithAuth = (route: string) => {
@@ -599,6 +593,20 @@ export default function Profile() {
           onClose={() => setLineupModalOpen(false)}
         />
       )}
+
+      {/* Official App Share Sheet (Play Store link) */}
+      <ShareSheet
+        visible={shareAppOpen}
+        onClose={() => setShareAppOpen(false)}
+        title="Share Upgrade Talents India"
+        subtitle="Invite friends to join live concerts, auditions & VIP passes"
+        message="🌟 Download Upgrade Talents India — Discover live concerts, enter national talent auditions & get instant digital QR entry passes!"
+        url="https://play.google.com/store/apps/details?id=in.upgradetalents.app"
+        card={{
+          title: "Upgrade Talents India",
+          meta: "Google Play Store · Live Events & Talent",
+        }}
+      />
     </Screen>
   );
 }

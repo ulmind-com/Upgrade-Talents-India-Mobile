@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "618767397707-agd743knp2l85jq560oik65099p348lm.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "in.upgradetalents.app",
+            "certificate_hash": "fcb367d68c59299da61ad005ba3d938f77a344b3"
+          }
+        },
+        {
           "client_id": "618767397707-nfcedk5skrgfcm0g9djeshs3oniqcurn.apps.googleusercontent.com",
           "client_type": 3
         }

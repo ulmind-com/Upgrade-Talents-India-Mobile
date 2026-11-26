@@ -14,8 +14,6 @@ import {
 import { useFocusEffect } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import * as SecureStore from "expo-secure-store";
-import { Bookmark } from "lucide-react-native";
 import { Txt } from "@/components/ui";
 import { AppImage } from "@/components/AppImage";
 import { splitDate } from "@/lib/format";
@@ -39,7 +37,6 @@ const CARD_H = Math.round(CARD_W * (920 / 736));
 const SPACING = 14;
 const ITEM_FULL_WIDTH = CARD_W + SPACING;
 const SIDE_PEEK = Math.round((SCREEN_W - CARD_W) / 2);
-const BOOKMARKS_KEY = "uti_saved_spotlights";
 
 const AnimatedFlatList = Animated.FlatList as unknown as React.ComponentType<
   FlatListProps<EventItem> & { ref?: any }
@@ -58,7 +55,6 @@ export function SpotlightCarousel({
   const activeIdxRef = useRef(0);
   activeIdxRef.current = activeIdx;
 
-  const [saved, setSaved] = useState<Set<string>>(new Set());
   const flatListRef = useRef<FlatList<EventItem>>(null);
   const scrollX = useRef(new Animated.Value(0)).current;
   const isInteracting = useRef(false);
@@ -111,30 +107,6 @@ export function SpotlightCarousel({
     return () => sub.remove();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [events?.length]);
-
-  // Load saved bookmarks from SecureStore
-  useEffect(() => {
-    SecureStore.getItemAsync(BOOKMARKS_KEY)
-      .then((raw) => {
-        if (raw) setSaved(new Set(JSON.parse(raw)));
-      })
-      .catch(() => {});
-  }, []);
-
-  const toggleSave = async (id: string, e: any) => {
-    e.stopPropagation();
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch {}
-    playNavFeedback();
-    setSaved((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      SecureStore.setItemAsync(BOOKMARKS_KEY, JSON.stringify([...next])).catch(() => {});
-      return next;
-    });
-  };
 
   if (!events || events.length === 0) return null;
 
@@ -194,7 +166,6 @@ export function SpotlightCarousel({
           startTimer();
         }}
         renderItem={({ item, index }) => {
-          const isSaved = saved.has(item._id);
           const isLive = item.event_status === "live";
 
           // Calculate 3D scale and opacity based on scroll distance from center
@@ -262,7 +233,7 @@ export function SpotlightCarousel({
                   style={styles.scrim}
                 />
 
-                {/* Top Header inside Card: Status Badge + Bookmark */}
+                {/* Top Header inside Card: Status Badge */}
                 <View style={styles.cardHeader}>
                   {/* Category / Status Pill */}
                   <View style={styles.pillBadge}>
@@ -273,19 +244,6 @@ export function SpotlightCarousel({
                       {isLive ? "Live now" : ((item as any).category || "District Live")}
                     </Txt>
                   </View>
-
-                  {/* Bookmark Button */}
-                  <Pressable
-                    onPress={(e) => toggleSave(item._id, e)}
-                    hitSlop={8}
-                    style={styles.bookmarkBtn}
-                  >
-                    <Bookmark
-                      size={17}
-                      color={isSaved ? "#ff385c" : "#ffffff"}
-                      fill={isSaved ? "#ff385c" : "transparent"}
-                    />
-                  </Pressable>
                 </View>
               </Pressable>
             </Animated.View>
@@ -388,16 +346,6 @@ const styles = StyleSheet.create({
   pillText: {
     color: "#ffffff",
     letterSpacing: -0.2,
-  },
-  bookmarkBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    backgroundColor: "rgba(0, 0, 0, 0.55)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.12)",
-    alignItems: "center",
-    justifyContent: "center",
   },
   infoWrapper: {
     alignItems: "center",

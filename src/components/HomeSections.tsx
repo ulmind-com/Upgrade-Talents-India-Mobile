@@ -82,9 +82,78 @@ export type RailItem = {
 
 const POSTER_W = 232;
 
-export function PosterRail({ items }: { items: RailItem[] }) {
+export function PosterRail({ items, autoSlide = true }: { items: RailItem[]; autoSlide?: boolean }) {
   const { c } = useTheme();
   if (!items.length) return null;
+  const cards = items.map((it) => (
+    <Pressable
+      key={it.id}
+      onPress={it.onPress}
+      style={({ pressed }) => ({ width: POSTER_W, transform: [{ scale: pressed ? 0.98 : 1 }] })}
+    >
+      <View
+        style={{
+          height: 320,
+          borderRadius: 20,
+          overflow: "hidden",
+          backgroundColor: c.surface,
+          borderWidth: 1,
+          borderColor: c.border,
+        }}
+      >
+        <AppImage uri={it.image} seed={it.id} style={{ width: "100%", height: "100%" }} />
+        {/* the caption needs a floor to sit on, not a decorative wash */}
+        <LinearGradient
+          colors={["transparent", "rgba(0,0,0,0.25)", "rgba(0,0,0,0.92)"] as any}
+          locations={[0.35, 0.6, 1]}
+          style={{ position: "absolute", width: "100%", height: "100%" }}
+        />
+        {it.hype ? (
+          <View
+            style={{
+              position: "absolute",
+              top: 10,
+              right: 10,
+              width: 30,
+              height: 30,
+              borderRadius: 999,
+              backgroundColor: "rgba(0,0,0,0.45)",
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.16)",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Flame size={14} color="#fbbf24" />
+          </View>
+        ) : null}
+        <View style={{ position: "absolute", left: 12, right: 12, bottom: 12, gap: 3 }}>
+          <Txt size={16} font="sansBold" lh={20} numberOfLines={2} style={{ color: "#ffffff" }}>
+            {it.title}
+          </Txt>
+          {it.sub ? (
+            <Txt size={12} numberOfLines={1} style={{ color: "rgba(255,255,255,0.70)" }}>
+              {it.sub}
+            </Txt>
+          ) : null}
+          {it.hype ? (
+            <Txt size={12} font="sansBold" style={{ color: "#fbbf24" }} numberOfLines={1}>
+              {it.hype}
+            </Txt>
+          ) : null}
+        </View>
+      </View>
+    </Pressable>
+  ));
+
+  if (autoSlide) {
+    return (
+      <AutoRail itemWidth={POSTER_W} gap={12} interval={3400}>
+        {cards}
+      </AutoRail>
+    );
+  }
+
   return (
     <ScrollView
       horizontal
@@ -93,66 +162,7 @@ export function PosterRail({ items }: { items: RailItem[] }) {
       decelerationRate="fast"
       contentContainerStyle={{ paddingHorizontal: GUTTER, gap: 12 }}
     >
-      {items.map((it) => (
-        <Pressable
-          key={it.id}
-          onPress={it.onPress}
-          style={({ pressed }) => ({ width: POSTER_W, transform: [{ scale: pressed ? 0.98 : 1 }] })}
-        >
-          <View
-            style={{
-              height: 320,
-              borderRadius: 20,
-              overflow: "hidden",
-              backgroundColor: c.surface,
-              borderWidth: 1,
-              borderColor: c.border,
-            }}
-          >
-            <AppImage uri={it.image} seed={it.id} style={{ width: "100%", height: "100%" }} />
-            {/* the caption needs a floor to sit on, not a decorative wash */}
-            <LinearGradient
-              colors={["transparent", "rgba(0,0,0,0.25)", "rgba(0,0,0,0.92)"] as any}
-              locations={[0.35, 0.6, 1]}
-              style={{ position: "absolute", width: "100%", height: "100%" }}
-            />
-            {it.hype ? (
-              <View
-                style={{
-                  position: "absolute",
-                  top: 10,
-                  right: 10,
-                  width: 30,
-                  height: 30,
-                  borderRadius: 999,
-                  backgroundColor: "rgba(0,0,0,0.45)",
-                  borderWidth: 1,
-                  borderColor: "rgba(255,255,255,0.16)",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Flame size={14} color="#fbbf24" />
-              </View>
-            ) : null}
-            <View style={{ position: "absolute", left: 12, right: 12, bottom: 12, gap: 3 }}>
-              <Txt size={16} font="sansBold" lh={20} numberOfLines={2} style={{ color: "#ffffff" }}>
-                {it.title}
-              </Txt>
-              {it.sub ? (
-                <Txt size={12} numberOfLines={1} style={{ color: "rgba(255,255,255,0.70)" }}>
-                  {it.sub}
-                </Txt>
-              ) : null}
-              {it.hype ? (
-                <Txt size={12} font="sansBold" style={{ color: "#fbbf24" }} numberOfLines={1}>
-                  {it.hype}
-                </Txt>
-              ) : null}
-            </View>
-          </View>
-        </Pressable>
-      ))}
+      {cards}
     </ScrollView>
   );
 }

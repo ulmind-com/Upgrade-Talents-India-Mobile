@@ -158,7 +158,8 @@ export default function DedicatedProfileScreen() {
       const performerName = me?.name || user?.name || "Performer";
       await Share.share({
         title: `${performerName} on Upgrade Talents India`,
-        message: `🌟 Official talent passport for ${performerName}\nTalent ID: UTI-${passId}\n\nJoin Upgrade Talents India to compete in live stages & national rankings:\nhttps://upgradetalents.com`,
+        message: `🌟 Official talent passport for ${performerName}\nTalent ID: UTI-${passId}\n\nJoin Upgrade Talents India to compete in live stages & get event passes:\nhttps://play.google.com/store/apps/details?id=in.upgradetalents.app`,
+        url: "https://play.google.com/store/apps/details?id=in.upgradetalents.app",
       });
     } catch (err) {
       console.warn("Share failed", err);

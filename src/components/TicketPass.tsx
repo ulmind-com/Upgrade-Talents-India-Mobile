@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from "react";
 import { View, Pressable, Dimensions, Animated, Easing } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import QRCode from "react-native-qrcode-svg";
-import { CheckCircle2, ChevronRight, Ban, CalendarX } from "lucide-react-native";
+import { CheckCircle2, ChevronRight, Ban, CalendarX, TicketX } from "lucide-react-native";
 import { useTheme } from "@/theme/ThemeProvider";
 import { Txt } from "@/components/ui";
 import { AppImage } from "@/components/AppImage";
@@ -74,6 +74,20 @@ export function ExpiredStamp({
   );
 }
 
+export function ticketAdmission(t?: Partial<MyTicket> | null) {
+  const quantity = Math.max(1, Number(t?.quantity || (Array.isArray(t?.holder_names) && t.holder_names.length) || 1));
+  const admitted = Number(t?.admitted_count ?? (t?.is_checked_in ? quantity : 0));
+  const used = Boolean(
+    t?.is_checked_in ||
+    t?.status === "USED" ||
+    t?.is_fully_used ||
+    t?.status_display === "ALREADY_USED" ||
+    t?.can_download === false ||
+    (quantity > 0 && admitted >= quantity && admitted > 0)
+  );
+  return { used, admitted: used ? Math.max(1, admitted || quantity) : admitted, quantity };
+}
+
 export function TicketPass({
   ticket, eventTitle, eventDate, venue, price, cover, onPress,
 }: {
@@ -82,7 +96,7 @@ export function TicketPass({
   const { c } = useTheme();
   const way = tierWay(ticket.ticket_type, ticket.ticket_ref || ticket.event_id || "x");
   const ink = way.ink || "rgba(255,255,255,0.95)";
-  const used = ticket.is_checked_in;
+  const { used, admitted, quantity } = ticketAdmission(ticket);
   /* A pass dies with its event, whatever the backend still calls it. `used`
      is the more useful truth, so a scanned pass keeps saying USED. */
   const date = eventDate ?? ticket.event_date;
@@ -123,14 +137,14 @@ export function TicketPass({
                 </Txt>
               </View>
 
-              <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between" }}>
-                <View>
+              <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 10, paddingRight: 4 }}>
+                <View style={{ flex: 1, minWidth: 0 }}>
                   <Txt size={8.5} font="monoMed" style={{ color: "rgba(255,255,255,0.65)", letterSpacing: 1.5 }} uppercase>Holder</Txt>
                   <Txt size={13} font="sansExt" style={{ color: "#fff" }} numberOfLines={1}>{ticket.holder_name}</Txt>
                 </View>
                 {price == null ? null : (
-                  <View style={{ backgroundColor: "#fff", borderRadius: 999, paddingHorizontal: 11, paddingVertical: 4 }}>
-                    <Txt size={12.5} font="sansExt" style={{ color: way.grad[1] }}>{price > 0 ? formatINR(price) : "FREE"}</Txt>
+                  <View style={{ flexShrink: 0, backgroundColor: "#fff", borderRadius: 999, paddingHorizontal: 11, paddingVertical: 4 }}>
+                    <Txt size={12.5} font="sansExt" numberOfLines={1} style={{ color: way.grad[1] }}>{price > 0 ? formatINR(price) : "FREE"}</Txt>
                   </View>
                 )}
               </View>
@@ -141,24 +155,80 @@ export function TicketPass({
         {/* ── Stub ── */}
         <View style={{ width: STUB }}>
           <LinearGradient colors={way.stub} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 7 }}>
-            <View style={{ backgroundColor: "#fff", padding: 7, borderRadius: 10 }}>
-              <QRCode value={ticket.ticket_ref || "UTI"} size={62} backgroundColor="#fff" color={expired ? "#9aa0ad" : "#000"} />
-              {/* An expired code must not look scannable. */}
-              {expired ? (
+            <View style={{ backgroundColor: "#fff", padding: 7, borderRadius: 10, overflow: "hidden" }}>
+              <QRCode value={ticket.ticket_ref || "UTI"} size={62} backgroundColor="#fff" color={used || expired ? "#9aa0ad" : "#000"} />
+              {/* A used pass must show ALREADY USED over the QR so it cannot be re-scanned. */}
+              {used ? (
+                <View style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0, borderRadius: 10, backgroundColor: "rgba(76, 5, 25, 0.78)", alignItems: "center", justifyContent: "center", padding: 3 }}>
+                  <View style={{ transform: [{ rotate: "-12deg" }], backgroundColor: "#E11D48", borderWidth: 1, borderColor: "#FB7185", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 }}>
+                    <Txt size={7} font="sansBold" style={{ color: "#fff", letterSpacing: 0.6 }}>ALREADY USED</Txt>
+                  </View>
+                  <View style={{ marginTop: 4, backgroundColor: "rgba(136, 19, 55, 0.85)", borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}>
+                    <Txt size={6.5} font="monoMed" style={{ color: "#FECDD3" }}>{`${admitted}/${quantity} Admitted`}</Txt>
+                  </View>
+                </View>
+              ) : expired ? (
                 <View style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0, borderRadius: 10, backgroundColor: "rgba(15,17,27,0.78)", alignItems: "center", justifyContent: "center" }}>
                   <Ban size={26} color="#ff9b9b" />
                 </View>
               ) : null}
             </View>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 2 }}>
-              <Txt size={8.5} font="monoMed" style={{ color: ink, letterSpacing: 1 }}>{expired ? "ENDED" : "VIEW"}</Txt>
-              {expired ? null : <ChevronRight size={10} color={ink} />}
+              <Txt size={8.5} font="monoMed" style={{ color: ink, letterSpacing: 1 }}>{used ? "USED" : expired ? "ENDED" : "VIEW"}</Txt>
+              {used || expired ? null : <ChevronRight size={10} color={ink} />}
             </View>
           </LinearGradient>
         </View>
 
+        {/* ── Already Used: bold tilted ink stamp across the pass ── */}
+        {used ? (
+          <>
+            <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0, backgroundColor: "rgba(6,8,16,0.5)" }} />
+            <View
+              pointerEvents="none"
+              style={{
+                position: "absolute",
+                left: 16,
+                right: STUB + 16,
+                top: H / 2 - 30,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <View
+                style={{
+                  transform: [{ rotate: "-7deg" }],
+                  backgroundColor: "rgba(10, 10, 14, 0.94)",
+                  borderWidth: 2,
+                  borderStyle: "dashed",
+                  borderColor: "#DC2626",
+                  borderRadius: 14,
+                  paddingHorizontal: 14,
+                  paddingVertical: 8,
+                  alignItems: "center",
+                  shadowColor: "#EF4444",
+                  shadowOpacity: 0.75,
+                  shadowRadius: 18,
+                  shadowOffset: { width: 0, height: 0 },
+                  elevation: 10,
+                }}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <TicketX size={15} color="#EF4444" />
+                  <Txt size={13} font="display" style={{ color: "#EF4444", letterSpacing: 2 }} uppercase>
+                    ALREADY USED
+                  </Txt>
+                </View>
+                <Txt size={7.5} font="monoMed" style={{ color: "#FECACA", letterSpacing: 0.8, marginTop: 2 }} uppercase>
+                  {`GATE ENTRY COMPLETED • ${admitted} OF ${quantity} ADMITTED`}
+                </Txt>
+              </View>
+            </View>
+          </>
+        ) : null}
+
         {/* ── Expired: the colour drains out and the stamp lands ── */}
-        {expired ? (
+        {!used && expired ? (
           <>
             <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0, backgroundColor: "rgba(6,8,16,0.52)" }} />
             <ExpiredStamp size={19} style={{ position: "absolute", left: (W - STUB) / 2 - 66, top: H / 2 - 20 }} />

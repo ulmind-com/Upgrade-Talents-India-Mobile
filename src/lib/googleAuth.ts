@@ -79,12 +79,17 @@ function explain(e: any): string | null {
   if (s && code === String(s.SIGN_IN_CANCELLED)) return null; // user backed out
   if (s && code === String(s.IN_PROGRESS)) return "Sign-in is already in progress.";
   if (s && code === String(s.PLAY_SERVICES_NOT_AVAILABLE)) return "Google Play services is missing or out of date on this device.";
-  // DEVELOPER_ERROR (10): this build's signing SHA-1 isn't registered in Firebase
+  // DEVELOPER_ERROR (10): Play App Signing SHA-1 or Web Client ID isn't matched in Firebase/Google Cloud
   if (code === "10" || /DEVELOPER_ERROR/i.test(String(e?.message))) {
-    return "Google sign-in isn't set up for this app build yet (signing key not registered).";
+    return "Google sign-in isn't set up for this app build yet (Play signing SHA-1 not matched, code 10).";
+  }
+  // SIGN_IN_FAILED (12500): Firebase support email / OAuth consent screen not published
+  if (code === "12500" || /12500|SIGN_IN_FAILED/i.test(String(e?.message))) {
+    return "Google sign-in could not start (code 12500 — check Firebase Support email & OAuth Consent Screen status).";
   }
   if (e instanceof ApiError) return e.message;
-  return e?.message || "Could not sign in with Google.";
+  const msg = e?.message || "Could not sign in with Google.";
+  return code ? `${msg} (${code})` : msg;
 }
 
 type GoogleAuth = { signIn: () => void; busy: boolean; error: string | null; ready: boolean };

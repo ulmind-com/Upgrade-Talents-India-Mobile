@@ -11,7 +11,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as Haptics from "expo-haptics";
 import {
   ArrowLeft, CalendarDays, MapPin, User as UserIcon, Download,
-  CheckCircle2, Share2, Ticket as TicketIcon, Ban, CalendarX, ChevronRight,
+  CheckCircle2, Share2, Ticket as TicketIcon, Ban, CalendarX, ChevronRight, TicketX,
 } from "lucide-react-native";
 import { useTheme } from "@/theme/ThemeProvider";
 import { bookingsApi, ApiError, type MyTicket } from "@/lib/api";
@@ -22,7 +22,7 @@ import { AppImage } from "@/components/AppImage";
 import { usePopup } from "@/components/Popup";
 import { ShareSheet } from "@/components/ShareSheet";
 import { GoogleWalletButtonArt } from "@/components/GoogleWalletButton";
-import { tierWay } from "@/components/TicketPass";
+import { tierWay, ticketAdmission } from "@/components/TicketPass";
 import { DottedGrid } from "@/components/patterns";
 import { parseDate, isEventExpired, endedAgo, formatEventDate, formatINR, imageFor } from "@/lib/format";
 
@@ -77,7 +77,10 @@ export default function TicketDetail() {
   const cover = myTicket?.event_cover || p.event_cover || (ev as any)?.card_image_url || ev?.image_url;
   const bgImg = imageFor(cover, p.event_id || p.ref || 0);
 
-  const checked = p.checked === "1" || myTicket?.is_checked_in;
+  const admission = ticketAdmission(myTicket);
+  const checked = p.checked === "1" || admission.used;
+  const admittedCount = admission.admitted;
+  const totalQuantity = admission.quantity;
   const expired = !checked && isEventExpired(eventDate, eventTime);
   const ended = expired ? endedAgo(eventDate, eventTime) : null;
   const DEAD = "#ff8e8e";
@@ -174,7 +177,7 @@ export default function TicketDetail() {
     .ticket-card {
       width: 100%;
       max-width: 580px;
-      height: 218px;
+      min-height: 218px;
       border-radius: 22px;
       overflow: hidden;
       display: flex;
@@ -185,10 +188,12 @@ export default function TicketDetail() {
     }
     .ticket-main {
       flex: 1;
-      padding: 16px 18px;
+      min-width: 0;
+      padding: 16px 20px 16px 18px;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
+      gap: 14px;
       position: relative;
       z-index: 2;
       background: linear-gradient(180deg, rgba(0,0,0,0.10) 0%, rgba(0,0,0,0.50) 100%);
@@ -229,6 +234,11 @@ export default function TicketDetail() {
       flex-direction: row;
       justify-content: space-between;
       align-items: flex-end;
+      gap: 12px;
+    }
+    .holder-wrap {
+      flex: 1;
+      min-width: 0;
     }
     .holder-label {
       font-size: 8.5px;
@@ -242,8 +252,12 @@ export default function TicketDetail() {
       font-weight: 800;
       color: #ffffff;
       margin-top: 2px;
+      line-height: 1.25;
+      word-break: break-word;
     }
     .price-pill {
+      flex-shrink: 0;
+      white-space: nowrap;
       background: #ffffff;
       border-radius: 999px;
       padding: 4px 14px;
@@ -346,7 +360,7 @@ export default function TicketDetail() {
         <div class="event-meta">${esc(dt)}${eventVenue ? ' · ' + esc(eventVenue) : ''}</div>
       </div>
       <div class="bottom-row" style="position:relative;z-index:3;">
-        <div>
+        <div class="holder-wrap">
           <div class="holder-label">HOLDER</div>
           <div class="holder-name">${esc(holderName)}</div>
         </div>
@@ -408,12 +422,13 @@ export default function TicketDetail() {
     return building.current;
   };
 
-  useEffect(() => { if (qrB64 && !loading) buildPdf().catch(() => {}); }, [qrB64, loading, sig]);
+  useEffect(() => { if (qrB64 && !loading && !checked) buildPdf().catch(() => {}); }, [qrB64, loading, checked, sig]);
 
   const reasonOf = (e: any) => (String(e?.message || "").split(/Caused by:\s*/).pop() || "").trim();
   const isCancelled = (e: any) => /dismiss|cancel|did not complete|rejected/i.test(String(e?.message || ""));
 
   const download = async () => {
+    if (checked) return;
     setBusy(true);
     Haptics.selectionAsync().catch(() => {});
     try {
@@ -435,6 +450,7 @@ export default function TicketDetail() {
   const [sharePdf, setSharePdf] = useState<string | null>(null);
 
   const shareTicket = async () => {
+    if (checked) return;
     const warm = !!pdfRef.current;
     if (!warm) setBusy(true);
     Haptics.selectionAsync().catch(() => {});
@@ -476,7 +492,12 @@ export default function TicketDetail() {
                   {eventTitle}
                 </Txt>
               </View>
-              {expired ? (
+              {checked ? (
+                <View style={{ position: "absolute", top: 18, right: 16, flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "rgba(16, 185, 129, 0.22)", borderWidth: 1, borderColor: "rgba(16, 185, 129, 0.45)", borderRadius: 999, paddingHorizontal: 11, paddingVertical: 5 }}>
+                  <CheckCircle2 size={12} color="#34D399" />
+                  <Txt size={10} font="sansBold" tracking={1} style={{ color: "#34D399" }}>USED</Txt>
+                </View>
+              ) : expired ? (
                 <View style={{ position: "absolute", top: 18, right: 16, backgroundColor: "rgba(239, 68, 68, 0.25)", borderWidth: 1, borderColor: "rgba(239, 68, 68, 0.5)", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5 }}>
                   <Txt size={10} font="sansBold" tracking={1} style={{ color: DEAD }}>EXPIRED</Txt>
                 </View>
@@ -485,17 +506,26 @@ export default function TicketDetail() {
 
             {/* ── District Accent Bar ── */}
             <View style={{ height: 28, backgroundColor: "rgba(0,0,0,0.35)", borderTopWidth: 1, borderBottomWidth: 1, borderColor: "rgba(255,255,255,0.08)", flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20 }}>
-              <Txt size={10} font="monoMed" tracking={2} uppercase style={{ color: LITE }}>VERIFIED PASS</Txt>
-              <Txt size={10} font="sansBold" tracking={1.5} uppercase style={{ color: "rgba(255,255,255,0.6)" }}>ADMIT ONE</Txt>
+              <Txt size={10} font="monoMed" tracking={2} uppercase style={{ color: checked ? "#34D399" : LITE }}>{checked ? "GATE CHECKED IN" : "VERIFIED PASS"}</Txt>
+              <Txt size={10} font="sansBold" tracking={1.5} uppercase style={{ color: "rgba(255,255,255,0.6)" }}>{checked ? `${admittedCount}/${totalQuantity} ADMITTED` : "ADMIT ONE"}</Txt>
             </View>
 
             {/* ── QR, inside a live scanner frame ── */}
             <View style={{ alignItems: "center", paddingTop: 26, paddingBottom: 20 }}>
               <DottedGrid color={c.fgSubtle} opacity={0.12} gap={20} r={1.1} />
-              <ScanFrame color={LITE} size={QR + 36}>
-                <View style={{ backgroundColor: "#fff", padding: 14, borderRadius: 18 }}>
-                  <QRCode value={p.ref || "UTI"} size={QR} backgroundColor="#fff" color={expired ? "#aeb4c0" : "#0b0b10"} getRef={(cv: any) => (qrRef.current = cv)} />
-                  {expired ? (
+              <ScanFrame color={checked ? "#EF4444" : LITE} size={QR + 36} active={!checked && !expired}>
+                <View style={{ backgroundColor: "#fff", padding: 14, borderRadius: 18, overflow: "hidden" }}>
+                  <QRCode value={p.ref || "UTI"} size={QR} backgroundColor="#fff" color={checked || expired ? "#aeb4c0" : "#0b0b10"} getRef={(cv: any) => (qrRef.current = cv)} />
+                  {checked ? (
+                    <View style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0, borderRadius: 18, backgroundColor: "rgba(76, 5, 25, 0.78)", alignItems: "center", justifyContent: "center", padding: 12 }}>
+                      <View style={{ transform: [{ rotate: "-10deg" }], backgroundColor: "#E11D48", borderWidth: 2, borderColor: "#FB7185", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 6, shadowColor: "#EF4444", shadowOpacity: 0.6, shadowRadius: 12 }}>
+                        <Txt size={14} font="display" tracking={1.5} style={{ color: "#fff" }}>ALREADY USED</Txt>
+                      </View>
+                      <View style={{ marginTop: 10, backgroundColor: "rgba(136, 19, 55, 0.9)", borderRadius: 6, paddingHorizontal: 10, paddingVertical: 3 }}>
+                        <Txt size={11} font="monoMed" style={{ color: "#FECDD3" }}>{`${admittedCount}/${totalQuantity} Admitted`}</Txt>
+                      </View>
+                    </View>
+                  ) : expired ? (
                     <View style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0, borderRadius: 18, backgroundColor: "rgba(15,17,27,0.76)", alignItems: "center", justifyContent: "center", gap: 8 }}>
                       <Ban size={46} color={DEAD} />
                       <Txt size={10.5} font="sansBold" tracking={2} style={{ color: DEAD }}>WON'T SCAN</Txt>
@@ -620,24 +650,48 @@ export default function TicketDetail() {
 
       {popup.node}
 
-      {/* Action bar — tinted to the ticket, never flat orange */}
+      {/* Action bar — strictly hidden for used passes (used = cannot download/share) */}
       <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, paddingHorizontal: 20, paddingTop: 12, paddingBottom: insets.bottom + 12, backgroundColor: c.bgElevated, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border, gap: 10 }}>
-        {showWallet ? (
-          <Pressable onPress={addToWallet} accessibilityRole="button" accessibilityLabel="Add to Google Wallet" style={({ pressed }) => ({ alignSelf: "center", opacity: pressed ? 0.85 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] })}>
-            <GoogleWalletButtonArt height={40} />
-          </Pressable>
-        ) : null}
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-          <Pressable onPress={download} disabled={busy} style={({ pressed }) => ({ flex: 1, transform: [{ scale: pressed ? 0.97 : 1 }], opacity: busy ? 0.65 : 1 })}>
-            <LinearGradient colors={way.stub as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ height: 48, borderRadius: 999, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 }}>
-              <Download size={16} color={way.ink || "#fff"} />
-              <Txt size={14} font="sansSemi" style={{ color: way.ink || "#fff" }}>{busy ? "Preparing…" : "Download ticket"}</Txt>
-            </LinearGradient>
-          </Pressable>
-          <Pressable onPress={shareTicket} disabled={busy} accessibilityLabel="Share ticket" style={({ pressed }) => ({ width: 48, height: 48, borderRadius: 999, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: LITE + "55", backgroundColor: LITE + "12", transform: [{ scale: pressed ? 0.94 : 1 }] })}>
-            <Share2 size={18} color={LITE} />
-          </Pressable>
-        </View>
+        {checked ? (
+          <View
+            style={{
+              height: 48,
+              borderRadius: 999,
+              backgroundColor: "rgba(220, 38, 38, 0.14)",
+              borderWidth: 1,
+              borderColor: "rgba(220, 38, 38, 0.42)",
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              paddingHorizontal: 16,
+            }}
+          >
+            <TicketX size={16} color="#EF4444" />
+            <Txt size={13} font="sansBold" style={{ color: "#FCA5A5" }}>
+              {`Already Used • ${admittedCount}/${totalQuantity} Admitted`}
+            </Txt>
+          </View>
+        ) : (
+          <>
+            {showWallet ? (
+              <Pressable onPress={addToWallet} accessibilityRole="button" accessibilityLabel="Add to Google Wallet" style={({ pressed }) => ({ alignSelf: "center", opacity: pressed ? 0.85 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] })}>
+                <GoogleWalletButtonArt height={40} />
+              </Pressable>
+            ) : null}
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <Pressable onPress={download} disabled={busy} style={({ pressed }) => ({ flex: 1, transform: [{ scale: pressed ? 0.97 : 1 }], opacity: busy ? 0.65 : 1 })}>
+                <LinearGradient colors={way.stub as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ height: 48, borderRadius: 999, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                  <Download size={16} color={way.ink || "#fff"} />
+                  <Txt size={14} font="sansSemi" style={{ color: way.ink || "#fff" }}>{busy ? "Preparing…" : "Download ticket"}</Txt>
+                </LinearGradient>
+              </Pressable>
+              <Pressable onPress={shareTicket} disabled={busy} accessibilityLabel="Share ticket" style={({ pressed }) => ({ width: 48, height: 48, borderRadius: 999, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: LITE + "55", backgroundColor: LITE + "12", transform: [{ scale: pressed ? 0.94 : 1 }] })}>
+                <Share2 size={18} color={LITE} />
+              </Pressable>
+            </View>
+          </>
+        )}
       </View>
     </View>
   );
@@ -651,9 +705,10 @@ function Rise({ v, delay = 0, children, style }: { v: Animated.Value; delay?: nu
   return <Animated.View style={[style, { opacity: o, transform: [{ translateY: ty }] }]}>{children}</Animated.View>;
 }
 
-function ScanFrame({ color, size, children }: { color: string; size: number; children: React.ReactNode }) {
+function ScanFrame({ color, size, active = true, children }: { color: string; size: number; active?: boolean; children: React.ReactNode }) {
   const y = useRef(new Animated.Value(0)).current;
   useEffect(() => {
+    if (!active) return;
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(y, { toValue: 1, duration: 1900, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
@@ -662,7 +717,7 @@ function ScanFrame({ color, size, children }: { color: string; size: number; chi
     );
     loop.start();
     return () => loop.stop();
-  }, []);
+  }, [active]);
   const card = size - 8;
   const BAND = 34;
   const ty = y.interpolate({ inputRange: [0, 1], outputRange: [-BAND / 2 + 6, card - BAND / 2 - 6] });
@@ -676,21 +731,23 @@ function ScanFrame({ color, size, children }: { color: string; size: number; chi
       <View style={corner({ bottom: 0, left: 0, borderBottomWidth: 3, borderLeftWidth: 3, borderBottomLeftRadius: 14 })} />
       <View style={corner({ bottom: 0, right: 0, borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 14 })} />
       {children}
-      <View pointerEvents="none" style={{ position: "absolute", top: 4, left: 4, width: card, height: card, borderRadius: 18, overflow: "hidden" }}>
-        <Animated.View style={{ position: "absolute", top: 0, left: 0, right: 0, height: BAND, justifyContent: "center", transform: [{ translateY: ty }] }}>
-          <LinearGradient
-            colors={["transparent", color + "33", "transparent"] as any}
-            style={StyleSheet.absoluteFill}
-          />
-          <LinearGradient
-            colors={["transparent", color, color, "transparent"] as any}
-            locations={[0, 0.2, 0.8, 1]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={{ height: 2.5, marginHorizontal: 10, borderRadius: 2 }}
-          />
-        </Animated.View>
-      </View>
+      {active ? (
+        <View pointerEvents="none" style={{ position: "absolute", top: 4, left: 4, width: card, height: card, borderRadius: 18, overflow: "hidden" }}>
+          <Animated.View style={{ position: "absolute", top: 0, left: 0, right: 0, height: BAND, justifyContent: "center", transform: [{ translateY: ty }] }}>
+            <LinearGradient
+              colors={["transparent", color + "33", "transparent"] as any}
+              style={StyleSheet.absoluteFill}
+            />
+            <LinearGradient
+              colors={["transparent", color, color, "transparent"] as any}
+              locations={[0, 0.2, 0.8, 1]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={{ height: 2.5, marginHorizontal: 10, borderRadius: 2 }}
+            />
+          </Animated.View>
+        </View>
+      ) : null}
     </View>
   );
 }

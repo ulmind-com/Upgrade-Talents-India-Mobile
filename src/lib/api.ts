@@ -396,6 +396,11 @@ export type MyTicket = {
   holder_name: string;
   holder_email: string;
   is_checked_in: boolean;
+  status?: string;
+  admitted_count?: number;
+  is_fully_used?: boolean;
+  status_display?: string;
+  can_download?: boolean;
   issued_at: string;
   /* The API denormalises the event onto each ticket — the website's type
      carries these too, and they are what a ticket shows without a second

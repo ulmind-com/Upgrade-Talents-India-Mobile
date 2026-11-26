@@ -1,4 +1,5 @@
-import React, { useEffect, useReducer } from "react";
+import React, { useCallback, useEffect, useReducer } from "react";
+import { useFocusEffect } from "expo-router";
 import { compImage } from "@/lib/competition";
 import { View, Pressable, StyleSheet, type StyleProp, type ViewStyle } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -172,6 +173,13 @@ export function BroadcastCard({ ev, onPress, onWatch }: { ev: LiveBroadcast; onP
 export function LiveCompCard({ comp, onPress }: { comp: LiveCompetition; onPress: () => void }) {
   const votingOpen = !!comp.audience_voting_enabled && String(comp.voting_status).toUpperCase() === "OPEN";
   const judgingOpen = !!comp.judge_scoring_enabled && String(comp.judging_status).toUpperCase() === "OPEN";
+  const rawPhase = String(comp.live_phase || "").toUpperCase();
+  const effectivePhase: LivePhase | undefined =
+    (!rawPhase || rawPhase === "UPCOMING") && votingOpen
+      ? "VOTING"
+      : (!rawPhase || rawPhase === "UPCOMING") && judgingOpen
+      ? "JUDGING"
+      : comp.live_phase;
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [s.cCard, { opacity: pressed ? 0.85 : 1 }]}>
       <View style={s.cThumb}>
@@ -179,7 +187,7 @@ export function LiveCompCard({ comp, onPress }: { comp: LiveCompetition; onPress
       </View>
       <View style={{ flex: 1, gap: 6 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <PhaseChip phase={comp.live_phase} />
+          <PhaseChip phase={effectivePhase} />
           {comp.category ? (
             <Txt size={11} font="sansBold" numberOfLines={1} style={{ color: MUTED, flexShrink: 1 }}>{comp.category}</Txt>
           ) : null}
@@ -252,41 +260,85 @@ const s = StyleSheet.create({
  */
 export function LiveNowBar({ onPress, style, refreshKey = 0 }: { onPress: () => void; style?: StyleProp<ViewStyle>; refreshKey?: number }) {
   const [sum, setSum] = React.useState<LiveSummary | null>(null);
+  const pull = useCallback(async () => {
+    try {
+      const d = await liveApi.summary();
+      setSum(d);
+    } catch {}
+  }, []);
+
   useEffect(() => {
-    let alive = true;
-    const pull = async () => {
-      try {
-        const d = await liveApi.summary();
-        if (alive) setSum(d);
-      } catch {}
-    };
     pull();
-    const t = setInterval(pull, 60000);
-    return () => {
-      alive = false;
-      clearInterval(t);
-    };
-  }, [refreshKey]);
+    const t = setInterval(pull, 30000);
+    return () => clearInterval(t);
+  }, [pull, refreshKey]);
+
+  useFocusEffect(
+    useCallback(() => {
+      pull();
+    }, [pull])
+  );
+
   if (!sum || !sum.total_live) return null;
-  const parts = [
-    sum.live_events_count ? `${sum.live_events_count} stream${sum.live_events_count > 1 ? "s" : ""}` : null,
-    sum.live_competitions_count ? `${sum.live_competitions_count} competition${sum.live_competitions_count > 1 ? "s" : ""}` : null,
-    sum.voting_open_count ? `${sum.voting_open_count} voting` : null,
-  ].filter(Boolean);
+
+  const pills: { label: string; color: string }[] = [];
+  if (sum.live_events_count > 0) {
+    pills.push({
+      label: `${sum.live_events_count} ${sum.live_events_count === 1 ? "stream" : "streams"}`,
+      color: RED,
+    });
+  }
+  if (sum.live_competitions_count > 0) {
+    pills.push({
+      label: `${sum.live_competitions_count} ${sum.live_competitions_count === 1 ? "competition" : "competitions"}`,
+      color: AMBER,
+    });
+  }
+  if (sum.voting_open_count > 0) {
+    pills.push({
+      label: `${sum.voting_open_count} voting open`,
+      color: OK,
+    });
+  }
+
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${sum.total_live} live now`} style={({ pressed }) => [bar.wrap, style, { opacity: pressed ? 0.85 : 1 }]}>
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${sum.total_live} live now`}
+      style={({ pressed }) => [bar.wrap, style, { opacity: pressed ? 0.88 : 1, transform: [{ scale: pressed ? 0.99 : 1 }] }]}
+    >
       <View style={bar.dotWrap}>
         <Pulse min={0.2} period={1300}>
           <View style={bar.halo} />
         </Pulse>
         <View style={bar.dot} />
       </View>
-      <View style={{ flex: 1 }}>
-        <Txt size={14.5} font="sansBold" style={{ color: "#fff" }}>{sum.total_live} live now</Txt>
-        {parts.length ? <Txt size={12} style={{ color: MUTED, marginTop: 1 }}>{parts.join("  ·  ")}</Txt> : null}
+
+      <View style={{ flex: 1, gap: 6 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          <Txt size={15} font="sansBold" style={{ color: "#fff" }}>
+            {sum.total_live} live now
+          </Txt>
+          <View style={bar.cta}>
+            <Txt size={12} font="sansBold" style={{ color: RED }}>See all</Txt>
+            <ChevronRight size={14} color={RED} strokeWidth={2.5} />
+          </View>
+        </View>
+
+        {pills.length ? (
+          <View style={bar.pillRow}>
+            {pills.map((p) => (
+              <View key={p.label} style={bar.pill}>
+                <View style={[bar.pillDot, { backgroundColor: p.color }]} />
+                <Txt size={11} font="sansSemi" numberOfLines={1} style={{ color: "#CBD5E1" }}>
+                  {p.label}
+                </Txt>
+              </View>
+            ))}
+          </View>
+        ) : null}
       </View>
-      <Txt size={12.5} font="sansBold" style={{ color: RED }}>See all</Txt>
-      <ChevronRight size={16} color={RED} />
     </Pressable>
   );
 }
@@ -298,13 +350,28 @@ const bar = StyleSheet.create({
     gap: 12,
     marginHorizontal: 20,
     paddingHorizontal: 14,
-    height: 60,
-    borderRadius: 18,
+    paddingVertical: 12,
+    minHeight: 66,
+    borderRadius: 20,
     backgroundColor: SURFACE,
     borderWidth: 1,
     borderColor: RED + "40",
   },
-  dotWrap: { width: 28, height: 28, borderRadius: 999, backgroundColor: RED + "1F", alignItems: "center", justifyContent: "center" },
-  halo: { position: "absolute", width: 18, height: 18, borderRadius: 999, backgroundColor: RED + "55", left: -9, top: -9 },
+  dotWrap: { width: 32, height: 32, borderRadius: 999, backgroundColor: RED + "1F", alignItems: "center", justifyContent: "center" },
+  halo: { position: "absolute", width: 20, height: 20, borderRadius: 999, backgroundColor: RED + "55", left: -10, top: -10 },
   dot: { width: 9, height: 9, borderRadius: 999, backgroundColor: RED },
+  cta: { flexDirection: "row", alignItems: "center", gap: 2, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: RED + "16" },
+  pillRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6 },
+  pill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  pillDot: { width: 5, height: 5, borderRadius: 999 },
 });

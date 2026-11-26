@@ -8,7 +8,7 @@ import { useSession } from "@/context/Session";
 import { bookingsApi, publicApi, safe, type MyTicket } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
 import { FadeInUp } from "@/components/FadeInUp";
-import { TicketPass } from "@/components/TicketPass";
+import { TicketPass, ticketAdmission } from "@/components/TicketPass";
 import { isEventExpired } from "@/lib/format";
 import { Txt, Button, Card, Skeleton, EmptyState, ErrorState } from "@/components/ui";
 
@@ -59,7 +59,7 @@ export default function Tickets() {
         type: t.ticket_type,
         holder: t.holder_name,
         issued: t.issued_at,
-        checked: t.is_checked_in ? "1" : "0",
+        checked: ticketAdmission(t).used ? "1" : "0",
         event_id: t.event_id,
         event_title: d?.title ?? t.event_title,
         event_date: d?.date ?? t.event_date,

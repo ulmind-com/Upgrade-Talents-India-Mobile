@@ -12,6 +12,7 @@ import { CartProvider } from "@/context/Cart";
 import { Splash, SPLASH_MS } from "@/components/Splash";
 import { PopupProvider } from "@/components/Popup";
 import { OnboardingGate } from "@/components/OnboardingGate";
+import { ReviewPromptGate } from "@/components/ReviewPromptGate";
 import { usePushSetup } from "@/lib/push";
 
 /** Push registration + notification taps, for the signed-in member. */
@@ -52,6 +53,7 @@ function Boot({ children }: { children: React.ReactNode }) {
       <PushBridge />
       {show ? children : null}
       {!gone ? <Splash visible={!(show && settled)} onHidden={() => setGone(true)} fontReady={fontsDone} /> : null}
+      <ReviewPromptGate readyToShow={gone} />
     </View>
   );
 }
