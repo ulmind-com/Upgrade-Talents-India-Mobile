@@ -7,7 +7,7 @@ import { PosterFill } from "@/components/AppImage";
 import { assetUrl } from "@/lib/api";
 import { Pulse } from "@/components/motion";
 import { countdownParts } from "@/lib/format";
-import { compId, type CompRow } from "@/lib/competition";
+import { compId, type CompRow, compImage } from "@/lib/competition";
 
 const SCREEN_W = Dimensions.get("window").width;
 const RED = "#FF385C";
@@ -78,8 +78,8 @@ export function LiveVoteCard({
   const entries = Number(comp.contestant_count ?? comp.submission_count ?? comp.participant_count ?? 0);
   const endsAt = comp.voting_ends_at || comp.voting_end_date || comp.voting_deadline || comp.voting_end;
   const title = comp.title || comp.name || "Live poll";
-  const image = comp.image_url || comp.banner_url;
-  const ratio = useAspect(image);
+  const image = compImage(comp);
+  const ratio = useAspect(image, 736 / 920);
 
   const facts = [
     votes > 0 ? `${votes.toLocaleString("en-IN")} votes` : null,

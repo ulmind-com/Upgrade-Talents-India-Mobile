@@ -1,6 +1,6 @@
 import { Platform } from "react-native";
 import * as Haptics from "expo-haptics";
-import { createAudioPlayer, type AudioPlayer } from "expo-audio";
+import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from "expo-audio";
 
 const NAV_SOUND = require("../../assets/sounds/nav_click.wav");
 
@@ -87,21 +87,47 @@ function playWebFeedback() {
 }
 
 /**
- * Plays the signature soft luxury acoustic feedback chime
- * replicated from Rahul Pandit's Admin panel interaction sound,
- * with synchronized gentle haptic feedback.
+ * Tap / popup feedback: the soft click sound plus a light haptic.
+ *
+ * It had been cut to haptic-only because the click landed a beat late on
+ * Android — the player was created on the first tap. Now a small pool is
+ * built and preloaded as soon as this module loads, each tap rewinds the next
+ * player in the pool (rapid taps never cut each other off), the volume is
+ * soft, and it mixes with whatever else is playing instead of pausing it.
  */
-/* Nav feedback is haptic only.
+let modeSet = false;
+function prepare() {
+  if (Platform.OS === "web") return;
+  if (!modeSet) {
+    modeSet = true;
+    setAudioModeAsync({ interruptionMode: "mixWithOthers", playsInSilentMode: false } as any).catch(() => {});
+  }
+  const pool = initPool();
+  pool.forEach((p) => {
+    try {
+      p.volume = 0.55;
+    } catch {}
+  });
+}
+// warm up early so the very first tap isn't late
+try {
+  prepare();
+} catch {}
 
-   The click tone read as novelty rather than craft: it fired on every tap,
-   it could not be turned off from inside the app, and on Android it landed
-   a few milliseconds behind the press, so it felt like a glitch instead of
-   a response. A light impact says the same thing silently, and matches how
-   the rest of the system behaves. The audio pipeline below is left intact
-   and unused so re-enabling it is a one-line change if we ever ship a
-   sound setting. */
 export function playNavFeedback() {
   try {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+  } catch {}
+  if (Platform.OS === "web") {
+    playWebFeedback();
+    return;
+  }
+  try {
+    const pool = initPool();
+    if (!pool.length) return;
+    const p = pool[currentIdx];
+    currentIdx = (currentIdx + 1) % pool.length;
+    p.seekTo(0);
+    p.play();
   } catch {}
 }

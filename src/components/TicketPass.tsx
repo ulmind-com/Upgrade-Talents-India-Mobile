@@ -9,9 +9,31 @@ import { AppImage } from "@/components/AppImage";
 import { formatINR, formatEventDate, isEventExpired, endedAgo } from "@/lib/format";
 import type { MyTicket } from "@/lib/api";
 
-/* Five colourways, picked deterministically per ticket — the pass is never
-   the same flat orange twice. Mirrors the website's TicketPass variants. */
-const WAYS: { grad: [string, string]; stub: [string, string] }[] = [
+export type TicketWay = {
+  grad: [string, string];
+  stub: [string, string];
+  /** Text on the stub — dark on the bright metallic stubs, white elsewhere. */
+  ink?: string;
+};
+
+/* Tier colourways — a pass looks like what it is. Platinum is the dark
+   gunmetal card with a bright platinum stub, gold is gold, silver is
+   silver, bronze is copper, free entry is emerald. Same tier, same look,
+   on the pass, the ticket screen and the PDF. */
+const TIERS: { match: RegExp; way: TicketWay }[] = [
+  { match: /plat|vip|diamond|royal/i, way: { grad: ["#4B5466", "#1B1F28"], stub: ["#F1F3F7", "#A5AEBD"], ink: "#1B1F28" } },
+  { match: /gold|exec|premier/i, way: { grad: ["#C9961F", "#6E4A0B"], stub: ["#FCE08A", "#D4A42A"], ink: "#3D2905" } },
+  { match: /silver|standard|mezz/i, way: { grad: ["#9BA4B1", "#47505E"], stub: ["#F3F5F8", "#B9C1CC"], ink: "#2B323D" } },
+  { match: /bronze/i, way: { grad: ["#B36B36", "#5E3214"], stub: ["#F0B27A", "#B9733C"], ink: "#3A1D08" } },
+  { match: /free/i, way: { grad: ["#059669", "#0f766e"], stub: ["#34d399", "#0f766e"] } },
+];
+
+/** The pass colours for a ticket type; other tiers keep a stable colourway per ticket. */
+export const tierWay = (type: string | undefined | null, seed: string): TicketWay =>
+  TIERS.find((t) => t.match.test(String(type || "")))?.way || ticketWay(seed);
+
+/* Colourways for tiers without a metal (General etc.), picked deterministically per ticket. */
+const WAYS: TicketWay[] = [
   { grad: ["#d91a7a", "#a21caf"], stub: ["#f0407e", "#a21caf"] }, // magenta
   { grad: ["#0284c7", "#1d4ed8"], stub: ["#38bdf8", "#1d4ed8"] }, // blue
   { grad: ["#059669", "#0f766e"], stub: ["#34d399", "#0f766e"] }, // emerald
@@ -53,12 +75,13 @@ export function ExpiredStamp({
 }
 
 export function TicketPass({
-  ticket, eventTitle, eventDate, venue, price, onPress,
+  ticket, eventTitle, eventDate, venue, price, cover, onPress,
 }: {
-  ticket: MyTicket; eventTitle?: string; eventDate?: string; venue?: string; price?: number; onPress?: () => void;
+  ticket: MyTicket; eventTitle?: string; eventDate?: string; venue?: string; price?: number | null; cover?: string | null; onPress?: () => void;
 }) {
   const { c } = useTheme();
-  const way = ticketWay(ticket.ticket_ref || ticket.event_id || "x");
+  const way = tierWay(ticket.ticket_type, ticket.ticket_ref || ticket.event_id || "x");
+  const ink = way.ink || "rgba(255,255,255,0.95)";
   const used = ticket.is_checked_in;
   /* A pass dies with its event, whatever the backend still calls it. `used`
      is the more useful truth, so a scanned pass keeps saying USED. */
@@ -72,7 +95,7 @@ export function TicketPass({
         {/* ── Main ── */}
         <View style={{ flex: 1 }}>
           <LinearGradient colors={way.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ flex: 1 }}>
-            <AppImage uri={undefined} seed={ticket.event_id || ticket.ticket_ref} style={{ position: "absolute", width: "100%", height: "100%", opacity: 0.38 }} />
+            <AppImage uri={cover || ticket.event_cover} seed={ticket.event_id || ticket.ticket_ref} style={{ position: "absolute", width: "100%", height: "100%", opacity: 0.38 }} />
             <LinearGradient colors={["rgba(0,0,0,0.15)", "rgba(0,0,0,0.55)"] as any} style={{ position: "absolute", width: "100%", height: "100%" }} />
 
             <View style={{ flex: 1, padding: 15, justifyContent: "space-between" }}>
@@ -95,7 +118,7 @@ export function TicketPass({
 
               <View>
                 <Txt size={19} font="display" tracking={-0.5} lh={22} numberOfLines={2} style={{ color: "#fff" }}>{eventTitle || "Event pass"}</Txt>
-                <Txt size={11.5} style={{ color: ended ? "rgba(255,180,180,0.95)" : "rgba(255,255,255,0.85)", marginTop: 4 }} numberOfLines={1}>
+                <Txt size={11.5} lh={15.5} style={{ color: ended ? "rgba(255,180,180,0.95)" : "rgba(255,255,255,0.85)", marginTop: 4 }} numberOfLines={2}>
                   {ended || (date ? formatEventDate(date) : ticket.holder_name)}{venue && !ended ? ` · ${venue}` : ""}
                 </Txt>
               </View>
@@ -105,9 +128,11 @@ export function TicketPass({
                   <Txt size={8.5} font="monoMed" style={{ color: "rgba(255,255,255,0.65)", letterSpacing: 1.5 }} uppercase>Holder</Txt>
                   <Txt size={13} font="sansExt" style={{ color: "#fff" }} numberOfLines={1}>{ticket.holder_name}</Txt>
                 </View>
-                <View style={{ backgroundColor: "#fff", borderRadius: 999, paddingHorizontal: 11, paddingVertical: 4 }}>
-                  <Txt size={12.5} font="sansExt" style={{ color: way.grad[1] }}>{price ? formatINR(price) : "FREE"}</Txt>
-                </View>
+                {price == null ? null : (
+                  <View style={{ backgroundColor: "#fff", borderRadius: 999, paddingHorizontal: 11, paddingVertical: 4 }}>
+                    <Txt size={12.5} font="sansExt" style={{ color: way.grad[1] }}>{price > 0 ? formatINR(price) : "FREE"}</Txt>
+                  </View>
+                )}
               </View>
             </View>
           </LinearGradient>
@@ -126,8 +151,8 @@ export function TicketPass({
               ) : null}
             </View>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 2 }}>
-              <Txt size={8.5} font="monoMed" style={{ color: "rgba(255,255,255,0.95)", letterSpacing: 1 }}>{expired ? "ENDED" : "VIEW"}</Txt>
-              {expired ? null : <ChevronRight size={10} color="rgba(255,255,255,0.95)" />}
+              <Txt size={8.5} font="monoMed" style={{ color: ink, letterSpacing: 1 }}>{expired ? "ENDED" : "VIEW"}</Txt>
+              {expired ? null : <ChevronRight size={10} color={ink} />}
             </View>
           </LinearGradient>
         </View>

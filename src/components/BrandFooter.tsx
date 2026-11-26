@@ -1,11 +1,25 @@
 import React, { useEffect, useRef } from "react";
 import { View, Pressable, Animated, StyleSheet, Linking } from "react-native";
 import { Image } from "expo-image";
+import * as Application from "expo-application";
+import Constants from "expo-constants";
 import LottieView from "lottie-react-native";
 import { Heart, ArrowUpRight } from "lucide-react-native";
 import { useTheme } from "@/theme/ThemeProvider";
 import { Txt } from "@/components/ui";
 import { playNavFeedback } from "@/lib/sound";
+
+/* Read from the installed build, so it moves with every release on its own:
+   version name from app.json "version", build number from EAS's
+   auto-incremented versionCode. Expo Go has no build of ours, so there it
+   falls back to the configured version. */
+const APP_VERSION = (() => {
+  const name = Application.nativeApplicationVersion && Constants.executionEnvironment !== "storeClient"
+    ? Application.nativeApplicationVersion
+    : Constants.expoConfig?.version;
+  const build = Constants.executionEnvironment !== "storeClient" ? Application.nativeBuildVersion : null;
+  return name ? `v${name}${build ? ` (${build})` : ""}` : "";
+})();
 
 export type BrandFooterProps = {
   tagline?: string;
@@ -136,7 +150,7 @@ export function BrandFooter({ tagline = "Own\nthe stage!" }: BrandFooterProps) {
           style={{ letterSpacing: 1.8, marginTop: 4 }}
           uppercase
         >
-          Upgrade Talents India • v1.0.0
+          Upgrade Talents India{APP_VERSION ? ` • ${APP_VERSION}` : ""}
         </Txt>
       </View>
     </View>

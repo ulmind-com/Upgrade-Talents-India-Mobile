@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { compImage } from "@/lib/competition";
 import { View, Pressable, TextInput, ScrollView, StyleSheet, Dimensions } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -13,7 +14,7 @@ import { competeApi, publicCompetitionsApi, publicApi, extrasApi, assetUrl, safe
 import { useAsync } from "@/lib/useAsync";
 import { Txt, Skeleton, EmptyState, Button } from "@/components/ui";
 import { Avatar } from "@/components/Avatar";
-import { VerifiedTick } from "@/components/VerifiedBadge";
+import { VerifiedTick, VerifiedName, isVerified } from "@/components/VerifiedBadge";
 import { Intro, useIntro } from "@/components/motion";
 import { Podium, RankLaurel, type PodiumEntry } from "@/components/Podium";
 import { formatDateTime } from "@/lib/format";
@@ -144,7 +145,7 @@ export default function CompetitionResults() {
           name: rowName(r),
           renderAvatar: (sz) => <Avatar name={rowName(r)} photo={r.profile_photo} size={sz} />,
           score: fmtScore(rowScore(r)),
-          badge: <VerifiedTick row={r} size={12} />,
+          verified: isVerified(r),
         }
       : null;
 
@@ -178,7 +179,7 @@ export default function CompetitionResults() {
           message={shareMessage}
           url={shareUrl}
           card={{
-            image: shareData?.image_url || comp.data?.image_url || comp.data?.banner_url,
+            image: shareData?.image_url || compImage(comp.data),
             title: `${title} — Official results`,
             meta: first ? `Winner: ${rowName(first)}` : null,
           }}
@@ -502,14 +503,7 @@ function StandingRow({ row, rank }: { row: Row; rank: number }) {
         <Avatar name={rowName(row)} photo={row.profile_photo} size={38} />
       </View>
       <View style={{ flex: 1, marginLeft: 10 }}>
-        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 4 }}>
-          <Txt size={13.5} font="sansBold" style={{ color: "#FFFFFF", flexShrink: 1, lineHeight: 18 }}>
-            {rowName(row)}
-          </Txt>
-          <View style={{ marginTop: 3 }}>
-            <VerifiedTick row={row} size={11} />
-          </View>
-        </View>
+        <VerifiedName name={rowName(row)} row={row} size={13.5} lh={18} style={{ color: "#FFFFFF" }} />
         {sub ? <Txt size={10} tone="subtle" style={{ marginTop: 1 }}>{sub}</Txt> : null}
       </View>
       <Txt size={13.5} font="sansExt" style={{ color: "#FFFFFF", width: 64, textAlign: "right", paddingRight: 10 }}>

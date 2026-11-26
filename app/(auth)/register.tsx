@@ -9,6 +9,8 @@ import { ArrowLeft, ArrowRight, Eye, EyeOff, Upload, Check, Mail, KeyRound, User
 import { useTheme } from "@/theme/ThemeProvider";
 import { useSession } from "@/context/Session";
 import { authApi, extrasApi, tokenStore, ApiError } from "@/lib/api";
+import { useGoogleAuth, googleVisible } from "@/lib/googleAuth";
+import { GoogleMark } from "@/components/GoogleMark";
 import { Alert, Button, Field, Input, Txt, Glow } from "@/components/ui";
 import { useAlert } from "@/components/Popup";
 import { OtpVerify } from "@/components/OtpVerify";
@@ -40,6 +42,15 @@ export default function Register() {
   const [email, setEmail] = useState("");
   const params = useLocalSearchParams<{ ref?: string }>();
   const [referral, setReferral] = useState(params.ref ? String(params.ref) : "");
+  /* Google sign-up skips the email-code steps; a first-timer then fills the
+     profile (phone, DOB, address) on complete-profile. The referral still counts. */
+  const google = useGoogleAuth(
+    async (tok, requiresProfile) => {
+      await setUserToken(tok);
+      router.replace(requiresProfile ? "/(auth)/complete-profile" : "/(user)/profile");
+    },
+    () => referral
+  );
   const [refPreview, setRefPreview] = useState<any | null>(null);
 
   // Preview the inviter when a code is entered — debounced so it doesn't fire
@@ -184,6 +195,26 @@ export default function Register() {
                       </View>
                       <Check size={16} color={c.success} />
                     </View>
+                  ) : null}
+
+                  {googleVisible ? (
+                    <>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                        <View style={{ flex: 1, height: 1, backgroundColor: c.border }} />
+                        <Txt size={11.5} font="monoMed" tone="subtle" tracking={2}>OR</Txt>
+                        <View style={{ flex: 1, height: 1, backgroundColor: c.border }} />
+                      </View>
+                      <Button
+                        label="Sign up with Google"
+                        variant="outline"
+                        full
+                        size="lg"
+                        loading={google.busy}
+                        icon={<GoogleMark size={20} />}
+                        onPress={google.signIn}
+                      />
+                      {google.error ? <Alert tone="error">{google.error}</Alert> : null}
+                    </>
                   ) : null}
                 </>
               )}

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef } from "react";
+import { InlineTick } from "@/components/VerifiedBadge";
 import {
   View,
   StyleSheet,
@@ -245,6 +246,8 @@ export type PodiumEntry = {
   renderAvatar?: (size: number) => React.ReactNode;
   score: string;
   badge?: React.ReactNode;
+  /** Verified member — the tick flows right after the name. */
+  verified?: boolean;
 } | null;
 
 /* Geometry in a 360 × 232 box. */
@@ -542,6 +545,8 @@ function Face({
       <View style={styles.nameRow}>
         <Txt size={13} font="sansBold" numberOfLines={2} style={styles.name}>
           {entry.name}
+          {entry.verified ? "\u00A0" : ""}
+          {entry.verified ? <InlineTick fontSize={13} /> : null}
         </Txt>
         {entry.badge}
       </View>

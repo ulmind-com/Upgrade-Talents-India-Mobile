@@ -6,7 +6,7 @@ import { useSession } from "@/context/Session";
 import { publicCompetitionsApi, type LiveStageData, type FinalLineup, type StagePerformer } from "@/lib/api";
 import { Txt, EmptyState } from "@/components/ui";
 import { Avatar } from "@/components/Avatar";
-import { VerifiedTick } from "@/components/VerifiedBadge";
+import { VerifiedTick, isVerified, InlineTick } from "@/components/VerifiedBadge";
 import { Pulse } from "@/components/motion";
 import { playNavFeedback } from "@/lib/sound";
 
@@ -233,8 +233,9 @@ export function LiveStageLineupModal({
                         <View style={s.inline}>
                           <Txt size={14} font="sansBold" lh={18} style={{ color: "#fff", flexShrink: 1 }}>
                             {nameOf(p)}
+                            {isVerified(p) ? "\u00A0" : ""}
+                            {isVerified(p) ? <InlineTick fontSize={14} size={12} /> : null}
                           </Txt>
-                          <VerifiedTick row={p} size={12} />
                           {isMe ? (
                             <View style={s.you}>
                               <Txt size={9.5} font="sansExt" style={{ color: "#fff" }}>YOU</Txt>

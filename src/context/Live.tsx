@@ -10,9 +10,9 @@ import { airState, publishedInOrder } from "@/lib/live";
  * and the clock is re-checked on a light tick so an event that *crosses* its
  * start time flips to live without another network call.
  */
-type LiveCtx = { hasLive: boolean; liveCount: number; firstLiveId: string | null };
+type LiveCtx = { hasLive: boolean; liveCount: number; firstLiveId: string | null; refresh: () => Promise<void> };
 
-const Ctx = createContext<LiveCtx>({ hasLive: false, liveCount: 0, firstLiveId: null });
+const Ctx = createContext<LiveCtx>({ hasLive: false, liveCount: 0, firstLiveId: null, refresh: async () => {} });
 
 export function LiveProvider({ children }: { children: React.ReactNode }) {
   const rows = useRef<LiveEventItem[]>([]);
@@ -40,7 +40,7 @@ export function LiveProvider({ children }: { children: React.ReactNode }) {
   }, [load, evaluate]);
 
   return (
-    <Ctx.Provider value={{ hasLive: live.length > 0, liveCount: live.length, firstLiveId: live[0]?._id ?? null }}>
+    <Ctx.Provider value={{ hasLive: live.length > 0, liveCount: live.length, firstLiveId: live[0]?._id ?? null, refresh: load }}>
       {children}
     </Ctx.Provider>
   );

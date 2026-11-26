@@ -51,8 +51,16 @@ export default function AdminCheckIn() {
 
   const valid = result && (result.valid !== false) && !result.error;
   const ref = result?.pass_reference || result?.ticket_ref || result?.ticket?.ticket_ref;
-  const holder = result?.holder_name || result?.ticket?.holder_name || result?.user_name;
-  const alreadyIn = result?.is_checked_in || result?.ticket?.is_checked_in;
+  const tk = result?.ticket || {};
+  const holder = result?.holder_name || tk.holder_name || result?.user_name;
+  const alreadyIn = result?.is_checked_in || tk.is_checked_in;
+  /* Everyone this one QR admits, each with their seat when the booking has them. */
+  const names: string[] = (tk.holder_names || result?.holder_names || []).map((n: any) => String(n).trim()).filter(Boolean);
+  const seats: string[] = tk.seats || result?.seats || [];
+  const qty = Number(tk.quantity || result?.quantity || names.length || 1);
+  const admitted = Number(tk.admitted_count ?? result?.admitted_count ?? 0);
+  const cashDue = !!(tk.is_cash_pending ?? result?.is_cash_pending);
+  const cashAmt = tk.total_amount ?? result?.total_amount;
 
   return (
     <AdminShell title="Check-in">
@@ -107,10 +115,41 @@ export default function AdminCheckIn() {
             {alreadyIn ? <ATag label="Already in" tone="warning" /> : null}
           </View>
           <View style={{ height: 1, backgroundColor: c.border, marginVertical: 14 }} />
+          {!valid && result?.message ? <T size={13} mut style={{ marginBottom: 12 }}>{result.message}</T> : null}
+
+          {names.length ? (
+            <View style={{ marginBottom: 14 }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <T size={12.5} sub font="monoMed" track={1} upper>{`Admits ${qty} ${qty === 1 ? "person" : "people"}`}</T>
+                {admitted > 0 && admitted < qty ? <ATag label={`${admitted} of ${qty} in`} tone="warning" /> : null}
+              </View>
+              <View style={{ gap: 8 }}>
+                {names.map((n, i) => (
+                  <View key={`${n}-${i}`} style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 12, backgroundColor: c.surface2 }}>
+                    <View style={{ width: 26, height: 26, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.accent + "22" }}>
+                      <T size={12} font="bold" style={{ color: c.accent }}>{i + 1}</T>
+                    </View>
+                    <T size={14.5} font="semi" style={{ flex: 1 }} numberOfLines={1}>{n}</T>
+                    {seats[i] ? <T size={12.5} font="mono" mut>{seats[i]}</T> : null}
+                  </View>
+                ))}
+              </View>
+            </View>
+          ) : null}
+
+          {cashDue ? (
+            <View style={{ marginBottom: 14, padding: 12, borderRadius: 12, backgroundColor: c.warning + "1f", borderWidth: 1, borderColor: c.warning + "55" }}>
+              <T size={13.5} font="semi" style={{ color: c.warning }}>
+                {cashAmt != null ? `Collect ₹${Number(cashAmt).toLocaleString("en-IN")} in cash` : "Cash payment pending"}
+              </T>
+            </View>
+          ) : null}
+
           <View style={{ gap: 10 }}>
-            {holder ? <Row label="Holder" value={holder} /> : null}
+            {holder && !names.length ? <Row label="Holder" value={holder} /> : null}
+            {!names.length && seats.length ? <Row label="Seats" value={seats.join(", ")} mono /> : null}
             {ref ? <Row label="Reference" value={ref} mono /> : null}
-            {result?.ticket_type || result?.pass_type ? <Row label="Type" value={result.ticket_type || result.pass_type} /> : null}
+            {result?.ticket_type || tk.ticket_type || result?.pass_type ? <Row label="Type" value={result?.ticket_type || tk.ticket_type || result.pass_type} /> : null}
             {result?.event_title ? <Row label="Event" value={result.event_title} /> : null}
           </View>
           {valid && !alreadyIn ? (

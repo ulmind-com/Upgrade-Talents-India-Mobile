@@ -95,3 +95,88 @@ export function liveVotingRows(payload: any): CompRow[] {
     .map((r: any) => (compId(r) ? r : { ...r, _id: r.competition_id }))
     .filter((r) => compId(r));
 }
+
+/**
+ * The competition's picture for a phone. The admin uploads two: a 16:9 card
+ * (`card_image_url` / `image_url`, the website's desktop art) and a 9:16
+ * banner (`banner_image_url` / `banner_url`, the website's mobile art). The
+ * website shows the banner on phones — so does the app, which is also why a
+ * banner the admin just changed shows up here at once.
+ */
+export function compImage(c: any): string | undefined {
+  return c?.banner_image_url || c?.banner_url || c?.card_image_url || c?.image_url || undefined;
+}
+
+/** The competition poster we design for: 736 × 920 (4:5). Boxes start at this
+    shape so nothing jumps or crops before the image reports its real size. */
+export const COMP_POSTER_RATIO = 736 / 920;
+
+/* ── Age eligibility — a 1:1 port of the website's CompetitionDetail rules ── */
+
+export type AgeRange = { minAge: number | null; maxAge: number | null; label: string };
+
+/** A category's age band from min_age / max_age, or parsed from "3-8 years", "14+", "Open". */
+export function parseAgeRange(cat: any): AgeRange {
+  const open: AgeRange = { minAge: null, maxAge: null, label: "Open for all ages" };
+  if (!cat) return open;
+  const catName = String(cat?.name || (typeof cat === "string" ? cat : "")).trim();
+  const num = (v: any) => (v != null && v !== "" && !isNaN(Number(v)) ? Number(v) : null);
+  let minAge = num(cat.min_age);
+  let maxAge = num(cat.max_age);
+  const ageLimitStr = String(cat.age_limit || cat.age_range || (typeof cat === "string" ? cat : "")).trim();
+  if (ageLimitStr && /open|all\s*ages?|any/i.test(ageLimitStr)) return open;
+
+  // the website's guard: "Group" once got a default 8–14 that meant group size, not age
+  const isGroup = catName.toLowerCase() === "group";
+  const desc = String(cat.description || "").trim();
+  const descIsGroupSize = desc && (/^\s*\d+\s*-\s*\d+\s*$/.test(desc) || /members|contestants|performers/i.test(desc));
+  if (isGroup && (descIsGroupSize || (minAge === 8 && maxAge === 14 && !/years|yrs|age/i.test(desc)))) return open;
+
+  if ((minAge == null || maxAge == null) && ageLimitStr) {
+    const t = ageLimitStr.toLowerCase();
+    const m = t.match(/(\d{1,2})\s*(?:-|to|\.\.|and)\s*(\d{1,2})/);
+    if (m) {
+      const a = parseInt(m[1], 10);
+      const b = parseInt(m[2], 10);
+      minAge = Math.min(a, b);
+      maxAge = Math.max(a, b);
+    } else {
+      const p = t.match(/(\d{1,2})\s*\+|above\s*(\d{1,2})|min\s*(\d{1,2})/);
+      if (p) minAge = parseInt(p[1] || p[2] || p[3], 10);
+    }
+  }
+  const label =
+    minAge != null && maxAge != null ? `${minAge} to ${maxAge} years` : minAge != null ? `${minAge}+ years` : maxAge != null ? `Up to ${maxAge} years` : "Open for all ages";
+  return { minAge, maxAge, label };
+}
+
+/** Age in whole years from a DOB ("2005-01-13", "13/01/2005", …); null if unknown. */
+export function ageFromDob(dob?: string | null): number | null {
+  if (!dob) return null;
+  const s = String(dob).trim();
+  let y = 0, m = 0, d = 0;
+  const iso = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  const dmy = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+  if (iso) {
+    y = +iso[1]; m = +iso[2] - 1; d = +iso[3];
+  } else if (dmy) {
+    d = +dmy[1]; m = +dmy[2] - 1; y = +dmy[3];
+  } else {
+    const t = new Date(s);
+    if (isNaN(t.getTime())) return null;
+    y = t.getFullYear(); m = t.getMonth(); d = t.getDate();
+  }
+  const now = new Date();
+  let age = now.getFullYear() - y;
+  if (now.getMonth() < m || (now.getMonth() === m && now.getDate() < d)) age--;
+  return age >= 0 ? age : null;
+}
+
+/** "open" — no age limit · "ok" — age fits · "no" — outside the band · "unknown" — no DOB on the profile. */
+export function ageFit(range: AgeRange, age: number | null): "open" | "ok" | "no" | "unknown" {
+  if (range.minAge == null && range.maxAge == null) return "open";
+  if (age == null) return "unknown";
+  if (range.minAge != null && age < range.minAge) return "no";
+  if (range.maxAge != null && age > range.maxAge) return "no";
+  return "ok";
+}

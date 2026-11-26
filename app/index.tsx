@@ -1,10 +1,13 @@
 import { Redirect } from "expo-router";
 import { useSession } from "@/context/Session";
 
-/** Boot router — send to the last-used mode, or the mode picker. */
+/**
+ * Boot router. The app is for attendees, so it opens straight into the user
+ * app — no mode picker. Staff who switched to admin from the menu keep
+ * landing in admin until they switch back.
+ */
 export default function Index() {
   const { mode } = useSession();
   if (mode === "admin") return <Redirect href="/(admin)" />;
-  if (mode === "user") return <Redirect href="/(user)" />;
-  return <Redirect href="/mode-select" />;
+  return <Redirect href="/(user)" />;
 }

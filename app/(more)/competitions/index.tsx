@@ -9,16 +9,22 @@ import { useSession } from "@/context/Session";
 import { publicApi, publicCompetitionsApi, safe, toRows } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
 import { Txt, Skeleton, EmptyState, SearchField } from "@/components/ui";
-import { AppImage, PosterFill } from "@/components/AppImage";
+import { AppImage, PosterFill, RatioImage } from "@/components/AppImage";
 import { FadeInUp } from "@/components/FadeInUp";
+import { Shine } from "@/components/Shine";
 import { DottedGrid } from "@/components/patterns";
 import { ExpiredStamp } from "@/components/TicketPass";
-import { LiveVotingBand } from "@/components/LiveVoting";
+import { PromoHeroBanner } from "@/components/PromoHeroBanner";
 import { genz } from "@/theme/tokens";
 import { formatEventDate, titleCase, endedAgo } from "@/lib/format";
-import { compId, compDeadline, shelveComps, liveVotingIds, liveVotingRows, type CompRow } from "@/lib/competition";
+import { compId, compDeadline, shelveComps, liveVotingIds, liveVotingRows, type CompRow, compImage, COMP_POSTER_RATIO } from "@/lib/competition";
 
 export default function Competitions() {
+  return <CompetitionsScreen />;
+}
+
+/** The competitions hub — a pushed screen here, and the "Compete" tab in the dock. */
+export function CompetitionsScreen({ asTab = false }: { asTab?: boolean }) {
   const { c } = useTheme();
   const router = useRouter();
   const { user } = useSession();
@@ -63,6 +69,16 @@ export default function Competitions() {
     const fromServer = liveVotingRows(lv.data).map((r) => ({ ...(byId.get(compId(r)) || {}), ...r }));
     return fromServer.length ? fromServer : shelf.live;
   }, [lv.data, rows, shelf.live]);
+  const liveSet = useMemo(() => new Set(liveCards.map((r) => compId(r))), [liveCards]);
+  const activeComps = useMemo(() => {
+    const seen = new Set<string>();
+    return [...liveCards, ...shelf.open].filter((r) => {
+      const k = compId(r);
+      if (!k || seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  }, [liveCards, shelf.open]);
 
   const open = (id: string) => router.push(`/(more)/competitions/${id}`);
   const openResults = (id: string) => router.push(`/(more)/competitions/${id}/results`);
@@ -73,27 +89,27 @@ export default function Competitions() {
 
   return (
     <SubScreen
+      asTab={asTab}
       eyebrow="Take the stage"
       title="Competitions"
       refreshing={refreshing}
       onRefresh={() => { refresh(); lv.refresh(); }}
     >
-      {/* Hero — District Gen-Z Violet to Coral */}
+      {/* 3D Character Promo Banner — Zomato District Style */}
       <FadeInUp>
-        <View style={{ borderRadius: 24, overflow: "hidden", marginBottom: 20 }}>
-          <LinearGradient colors={["#7C3AED", "#FF385C", "#08090C"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 20 }}>
-            <DottedGrid color="rgba(255,255,255,0.24)" opacity={0.5} gap={18} />
-            <Txt size={72} font="display" style={{ position: "absolute", top: -6, right: -4, color: "rgba(255,255,255,0.15)", letterSpacing: -3 }}>WIN</Txt>
-            <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.22)", alignItems: "center", justifyContent: "center" }}>
-              <Trophy size={22} color="#fff" />
-            </View>
-            <Txt size={25} font="display" tracking={-0.5} lh={28} style={{ color: "#fff", marginTop: 12 }}>Enter. Perform.{"\n"}Take the crown.</Txt>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
-              <Stat label="Open" value={shelf.open.length} />
-              {liveCards.length ? <Stat label="Voting live" value={liveCards.length} highlight /> : null}
-              {shelf.over.length ? <Stat label="Finished" value={shelf.over.length} /> : null}
-            </View>
-          </LinearGradient>
+        <PromoHeroBanner
+          tag="National Competitions"
+          title="Enter. Perform. Take the Crown."
+          subtitle="Live stage auditions & real-time audience voting"
+          characterSource={require("../../../assets/banners/3d_competition_char.png")}
+          glowColor="rgba(255, 180, 20, 0.16)"
+        />
+
+        {/* Quick Stage Stats Row */}
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+          <Stat label="Open" value={shelf.open.length} />
+          {liveCards.length ? <Stat label="Voting live" value={liveCards.length} highlight /> : null}
+          {shelf.over.length ? <Stat label="Finished" value={shelf.over.length} /> : null}
         </View>
       </FadeInUp>
 
@@ -120,21 +136,13 @@ export default function Competitions() {
         <View style={{ gap: 14 }}>{[0, 1].map((i) => <Skeleton key={i} h={210} radius={24} />)}</View>
       ) : fRows.length ? (
         <View>
-          {/* ══ 1. polls open right now — straight to the top ══ */}
-          {/* card → the competition; "Cast your vote" → the leaderboard, where voting happens */}
-          <LiveVotingBand
-            rows={liveCards}
-            onOpen={open}
-            onVote={(id) => router.push({ pathname: "/(more)/leaderboard", params: { competition: id } })}
-          />
-
-          {/* ══ 2. still taking entries ══ */}
-          {shelf.open.length ? (
+          {/* ══ 1. live polls first, then everything still taking entries —
+                one card style for everyone, signed in or not, each with Compete ══ */}
+          {activeComps.length ? (
             <View style={{ gap: 16 }}>
-              {liveCards.length ? <Heading icon={<Flame size={14} color={c.accent} />} tone={c.accent} label={`Open now · ${shelf.open.length}`} /> : null}
-              {shelf.open.map((comp, i) => (
+              {activeComps.map((comp, i) => (
                 <FadeInUp key={compId(comp) || i} delay={Math.min(i, 6) * 60}>
-                  <CompCard comp={comp} i={i} onPress={() => open(compId(comp))} />
+                  <CompCard comp={comp} i={i} live={liveSet.has(compId(comp))} onPress={() => open(compId(comp))} />
                 </FadeInUp>
               ))}
             </View>
@@ -142,7 +150,7 @@ export default function Competitions() {
 
           {/* ══ 3. over — the bottom of the shelf, stamped ══ */}
           {shelf.over.length ? (
-            <View style={{ gap: 16, marginTop: shelf.open.length || liveCards.length ? 26 : 0 }}>
+            <View style={{ gap: 16, marginTop: activeComps.length ? 26 : 0 }}>
               <Heading icon={<History size={14} color={c.fgSubtle} />} tone={c.fgSubtle} label={`Expired · ${shelf.over.length}`} />
               <Txt size={12.5} tone="subtle" lh={18} style={{ marginTop: -6 }}>
                 These are done — entries are closed and the results are in. Kept here to look back on.
@@ -175,7 +183,7 @@ function Heading({ icon, label, tone }: { icon: React.ReactNode; label: string; 
   );
 }
 
-function CompCard({ comp, i, over, onPress }: { comp: CompRow; i: number; over?: boolean; onPress: () => void }) {
+function CompCard({ comp, i, over, live, onPress }: { comp: CompRow; i: number; over?: boolean; live?: boolean; onPress: () => void }) {
   const { c } = useTheme();
   const [g1, g2] = genz(i + 2);
   const id = compId(comp);
@@ -187,8 +195,8 @@ function CompCard({ comp, i, over, onPress }: { comp: CompRow; i: number; over?:
     <Pressable onPress={onPress} style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.985 : 1 }] })}>
       <View style={{ borderRadius: 24, overflow: "hidden", backgroundColor: c.surface, borderWidth: 1, borderColor: c.border, shadowColor: over ? "#000" : g2, shadowOpacity: over ? 0.18 : 0.25, shadowRadius: 14, shadowOffset: { width: 0, height: 8 }, elevation: 6 }}>
         {/* banner */}
-        <View style={{ aspectRatio: 16 / 10 }}>
-          <PosterFill uri={comp.image_url || comp.banner_url} seed={id || i} />
+        {/* the whole poster at its own proportions — the card grows to fit it */}
+        <RatioImage uri={compImage(comp)} seed={id || i} fallbackRatio={COMP_POSTER_RATIO}>
           <LinearGradient colors={["rgba(0,0,0,0.18)", "transparent", "rgba(0,0,0,0.82)"] as any} locations={[0, 0.42, 1]} style={{ position: "absolute", width: "100%", height: "100%" }} />
           <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 3, backgroundColor: over ? c.fgSubtle : g1 }} />
 
@@ -201,6 +209,12 @@ function CompCard({ comp, i, over, onPress }: { comp: CompRow; i: number; over?:
                 </Txt>
               </View>
             )}
+            {live ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "rgba(255,56,92,0.9)", borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 }}>
+                <View style={{ width: 6, height: 6, borderRadius: 999, backgroundColor: "#fff" }} />
+                <Txt size={9.5} font="sansBold" style={{ color: "#fff", letterSpacing: 1 }}>VOTING LIVE</Txt>
+              </View>
+            ) : null}
             {resultOut ? (
               <View style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "rgba(0,0,0,0.42)", borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 }}>
                 <Medal size={10} color="#ffd166" />
@@ -220,7 +234,7 @@ function CompCard({ comp, i, over, onPress }: { comp: CompRow; i: number; over?:
               <ExpiredStamp size={18} style={{ position: "absolute", top: 16, right: 10 }} />
             </>
           ) : null}
-        </View>
+        </RatioImage>
 
         {/* body */}
         <View style={{ padding: 14, gap: 11, opacity: over ? 0.78 : 1 }}>
@@ -271,6 +285,7 @@ function CompCard({ comp, i, over, onPress }: { comp: CompRow; i: number; over?:
                 <LinearGradient colors={[g1, g2] as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ position: "absolute", width: "100%", height: "100%" }} />
                 <Txt size={12.5} font="sansBold" style={{ color: "#fff" }} uppercase tracking={0.5}>Compete</Txt>
                 <ArrowUpRight size={15} color="#fff" />
+                <Shine />
               </View>
             )}
           </View>
@@ -282,9 +297,27 @@ function CompCard({ comp, i, over, onPress }: { comp: CompRow; i: number; over?:
 
 function Stat({ label, value, highlight }: { label: string; value: number; highlight?: boolean }) {
   return (
-    <View style={{ backgroundColor: highlight ? "rgba(201, 242, 74, 0.2)" : "rgba(255,255,255,0.18)", borderRadius: 14, paddingHorizontal: 14, paddingVertical: 8, borderWidth: highlight ? 1 : 0, borderColor: "#C9F24A" }}>
-      <Txt size={18} font="display" style={{ color: highlight ? "#C9F24A" : "#fff" }}>{value}</Txt>
-      <Txt size={9.5} font="sansBold" style={{ color: highlight ? "#C9F24A" : "rgba(255,255,255,0.88)", letterSpacing: 1 }} uppercase>{label}</Txt>
+    <View
+      style={{
+        backgroundColor: highlight ? "rgba(201, 242, 74, 0.12)" : "rgba(255, 255, 255, 0.06)",
+        borderRadius: 14,
+        paddingHorizontal: 14,
+        paddingVertical: 7,
+        borderWidth: 1,
+        borderColor: highlight ? "rgba(201, 242, 74, 0.3)" : "rgba(255, 255, 255, 0.08)",
+      }}
+    >
+      <Txt size={17} font="sansBold" style={{ color: highlight ? "#C9F24A" : "#ffffff" }}>
+        {value}
+      </Txt>
+      <Txt
+        size={9.5}
+        font="monoMed"
+        style={{ color: highlight ? "#C9F24A" : "#8E95AC", letterSpacing: 1 }}
+        uppercase
+      >
+        {label}
+      </Txt>
     </View>
   );
 }

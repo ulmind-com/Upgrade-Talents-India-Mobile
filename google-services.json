@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "618767397707",
+    "project_id": "event-management-4fe6f",
+    "storage_bucket": "event-management-4fe6f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:618767397707:android:5574da418de46e2725aece",
+        "android_client_info": {
+          "package_name": "in.upgradetalents.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "618767397707-9o8un8v3f18o8ot64qlvi61tge0663m0.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "in.upgradetalents.app",
+            "certificate_hash": "0d3d9729cfe4f2464855a1d0c821d3143760004c"
+          }
+        },
+        {
+          "client_id": "618767397707-nfcedk5skrgfcm0g9djeshs3oniqcurn.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBvOvYEPlZ0BJX0Ermt96UiodhJnd6yeXU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "618767397707-nfcedk5skrgfcm0g9djeshs3oniqcurn.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

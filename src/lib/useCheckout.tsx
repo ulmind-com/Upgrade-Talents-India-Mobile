@@ -99,7 +99,8 @@ export function useCheckout({ onDone }: { onDone?: (reference: string) => void }
           await userVipApi.verifyPayment({ booking_reference: ctx.bookingReference, ...common });
           return ctx.bookingReference;
         case "competition":
-          await competeApi.verifyPayment(ctx.competitionId, { order_reference: ctx.orderReference, ...common });
+          // the backend finds the entry by registration_reference
+          await competeApi.verifyPayment(ctx.competitionId, { registration_reference: ctx.orderReference, order_reference: ctx.orderReference, ...common });
           return ctx.orderReference;
         case "merch":
           await shopApi.verifyPayment({ order_number: ctx.orderNumber, ...common });

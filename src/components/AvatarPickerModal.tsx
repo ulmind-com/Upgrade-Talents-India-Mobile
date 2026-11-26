@@ -11,6 +11,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import { Asset } from "expo-asset";
+import { requireNativeModule } from "expo-modules-core";
 import * as FileSystem from "expo-file-system/legacy";
 import { Sparkles, Check, X } from "lucide-react-native";
 import { useTheme } from "@/theme/ThemeProvider";
@@ -59,7 +60,20 @@ export const AVATAR_CATALOG: AvatarItem[] = [
 export async function getAvatarAssetFile(item: AvatarItem): Promise<AssetFile> {
   const asset = Asset.fromModule(item.source);
   await asset.downloadAsync();
-  const localUri = asset.localUri || asset.uri;
+  let localUri = asset.localUri || asset.uri;
+
+  /* Release Android builds embed images as drawable resources, and expo-asset
+     reports them as a bare resource name ("assets_avatars_m1") marked as
+     already downloaded — not a file, so a multipart upload of it fails (Expo
+     Go serves assets over http instead, which is why it worked there). Ask
+     the native module to copy the resource into the cache as a real file. */
+  if (localUri && !localUri.includes(":")) {
+    try {
+      const native = requireNativeModule<{ downloadAsync: (uri: string, hash: string | null, type: string) => Promise<string> }>("ExpoAsset");
+      const fileUri = await native.downloadAsync(localUri, asset.hash ?? null, asset.type || "png");
+      if (fileUri) localUri = String(fileUri);
+    } catch {}
+  }
 
   if (localUri && localUri.startsWith("file://")) {
     return {

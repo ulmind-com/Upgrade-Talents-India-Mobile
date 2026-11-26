@@ -11,6 +11,7 @@ import { useCart } from "@/context/Cart";
 import { Txt, Card, Skeleton, EmptyState, ErrorState, SearchField } from "@/components/ui";
 import { AppImage } from "@/components/AppImage";
 import { FadeInUp } from "@/components/FadeInUp";
+import { PromoHeroBanner } from "@/components/PromoHeroBanner";
 import { DottedGrid } from "@/components/patterns";
 import { genz } from "@/theme/tokens";
 import { formatINR, titleCase } from "@/lib/format";
@@ -55,20 +56,15 @@ export default function Shop() {
         </Pressable>
       }
     >
-      {/* Drop hero — District Gen-Z palette */}
+      {/* 3D Character Promo Banner — Zomato District Style */}
       <FadeInUp>
-        <View style={{ borderRadius: 24, overflow: "hidden", marginBottom: 20 }}>
-          <LinearGradient colors={["#7C3AED", "#FF385C", "#08090C"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 20 }}>
-            <DottedGrid color="rgba(255,255,255,0.25)" opacity={0.5} gap={18} />
-            <Txt size={72} font="display" style={{ position: "absolute", top: -4, right: -6, color: "rgba(255,255,255,0.14)", letterSpacing: -3 }}>DROP</Txt>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
-              <Sparkles size={14} color="#C9F24A" />
-              <Txt size={10.5} font="monoMed" tracking={2.5} uppercase style={{ color: "#C9F24A" }}>Season drop</Txt>
-            </View>
-            <Txt size={25} font="display" tracking={-0.5} lh={28} style={{ color: "#fff", marginTop: 12 }}>Wear the{"\n"}movement.</Txt>
-            <Txt size={13} lh={19} style={{ color: "rgba(255,255,255,0.9)", marginTop: 8, maxWidth: 240 }}>Official tees, hoodies & gear from the floor.</Txt>
-          </LinearGradient>
-        </View>
+        <PromoHeroBanner
+          tag="Official Merch Drop"
+          title="Wear the Movement"
+          subtitle="Exclusive performer tees, hoodies & official gear"
+          characterSource={require("../../../assets/banners/3d_shop_char.png")}
+          glowColor="rgba(220, 50, 240, 0.16)"
+        />
       </FadeInUp>
 
       <View style={{ marginBottom: 14 }}>

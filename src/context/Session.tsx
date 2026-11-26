@@ -1,6 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import * as SecureStore from "expo-secure-store";
 import { adminAuthApi, authApi, loadApiBase, tokenStore, getApiBase, setUnauthorizedHandler, ApiError } from "@/lib/api";
+import { unregisterPush } from "@/lib/push";
+import { googleSignOut } from "@/lib/googleAuth";
 
 export type AppMode = "user" | "admin";
 const MODE_KEY = "uti_app_mode";
@@ -131,6 +133,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logoutUser = useCallback(async () => {
+    // stop pushes to this phone while the session token is still valid
+    await unregisterPush().catch(() => {});
+    googleSignOut();
     await tokenStore.setUser(null);
     SecureStore.deleteItemAsync(USER_KEY).catch(() => {});
     setUser(null);

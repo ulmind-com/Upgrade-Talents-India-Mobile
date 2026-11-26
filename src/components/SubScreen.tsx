@@ -21,6 +21,7 @@ export function SubScreen({
   right,
   onBack,
   overlay,
+  asTab = false,
 }: {
   title: string;
   eyebrow?: string;
@@ -31,6 +32,8 @@ export function SubScreen({
   right?: React.ReactNode;
   onBack?: () => void;
   overlay?: React.ReactNode;
+  /** Shown as a bottom-dock tab: no back button, room for the dock under the content. */
+  asTab?: boolean;
 }) {
   const { c, name } = useTheme();
   const router = useRouter();
@@ -44,7 +47,8 @@ export function SubScreen({
 
   const header = (
     <View style={{ paddingHorizontal: 20, paddingTop: 4, paddingBottom: 16 }}>
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: asTab ? 0 : undefined }}>
+        {asTab ? <View /> : (
         <Pressable
           onPress={handleBack}
           style={({ pressed }) => ({
@@ -61,13 +65,14 @@ export function SubScreen({
         >
           <ArrowLeft size={20} color="#FFFFFF" />
         </Pressable>
+        )}
         {right}
       </View>
       {eyebrow ? (
         <Txt
           size={11.5}
           font="monoMed"
-          style={{ color: "#C9F24A", letterSpacing: 2, marginTop: 18 }}
+          style={{ color: "#C9F24A", letterSpacing: 2, marginTop: asTab ? 4 : 18 }}
           uppercase
         >
           {eyebrow}
@@ -114,7 +119,7 @@ export function SubScreen({
         {scroll ? (
           <ScrollView
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 48 }}
+            contentContainerStyle={{ paddingBottom: asTab ? 120 : 48 }}
             refreshControl={
               onRefresh ? (
                 <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={c.accent} colors={[c.accent]} />

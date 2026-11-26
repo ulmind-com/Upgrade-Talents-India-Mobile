@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { PASSKEYS_ENABLED } from "@/lib/passkey";
 import { View, Pressable } from "react-native";
 import { Server, Check, Sun, Moon, Repeat, Wifi, Fingerprint, ChevronRight } from "lucide-react-native";
 import { useRouter } from "expo-router";
@@ -61,6 +62,7 @@ export default function Settings() {
           <ThemeRow active={true} label="Zomato District AMOLED Dark (Active)" icon={<Moon size={18} color="#C9F24A" />} onPress={() => setTheme("dark")} />
         </Card>
 
+        {PASSKEYS_ENABLED ? (
         <Card padding={0}>
           <View style={{ padding: 16 }}>
             <Txt size={13} font="monoMed" tone="subtle" tracking={2} uppercase>Security</Txt>
@@ -78,6 +80,7 @@ export default function Settings() {
             <ChevronRight size={18} color={c.fgSubtle} />
           </Pressable>
         </Card>
+        ) : null}
 
         <Button
           label="Switch to Admin mode"

@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from "react";
+import { compImage, COMP_POSTER_RATIO } from "@/lib/competition";
 import { View, Pressable, StyleSheet, Dimensions } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Trophy, MapPin, ChevronRight, Vote, ClipboardList, Upload, Gavel, Flag as FlagIcon } from "lucide-react-native";
 import { SubScreen } from "@/components/SubScreen";
 import { Txt, Skeleton, EmptyState } from "@/components/ui";
-import { AppImage } from "@/components/AppImage";
+import { AppImage, RatioImage } from "@/components/AppImage";
 import { LiveStage } from "@/components/LiveStage";
 import { liveApi, safe, type LiveCompetitionDetail } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
@@ -67,7 +68,8 @@ export default function LiveCompetitionScreen() {
         <View style={{ gap: 16 }}>
           {/* artwork + phase */}
           <View style={s.hero}>
-            <AppImage uri={c.image_url || c.banner_url} seed={c._id} style={StyleSheet.absoluteFill} />
+            {/* the whole 4:5 poster — the box takes its shape, nothing cropped */}
+            <RatioImage uri={compImage(c)} seed={c._id} fallbackRatio={COMP_POSTER_RATIO} />
             <LinearGradient colors={["rgba(11,11,14,0)", "rgba(11,11,14,0.85)"]} style={StyleSheet.absoluteFill} />
             <View style={s.heroBody}>
               <PhaseChip phase={c.live_phase} solid />
@@ -205,8 +207,8 @@ function StatusRow({
 }
 
 const s = StyleSheet.create({
-  hero: { height: W * 0.5, borderRadius: 22, overflow: "hidden", backgroundColor: "#1A1C24", justifyContent: "flex-end" },
-  heroBody: { padding: 16 },
+  hero: { borderRadius: 22, overflow: "hidden", backgroundColor: "#1A1C24" },
+  heroBody: { position: "absolute", left: 0, right: 0, bottom: 0, padding: 16 },
   card: { padding: 16, gap: 14, borderRadius: 20, backgroundColor: SURFACE, borderWidth: 1, borderColor: HAIR },
   rowIcon: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   primary: { height: 52, borderRadius: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: RED },

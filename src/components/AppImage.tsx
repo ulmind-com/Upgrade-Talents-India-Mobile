@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { View, StyleProp, ImageStyle, ViewStyle } from "react-native";
 import { Image } from "expo-image";
-import { imageFor } from "@/lib/format";
+import { imageFor, isUsableImageUrl } from "@/lib/format";
 import { assetUrl } from "@/lib/api";
 
 /**
@@ -54,6 +54,55 @@ export function PosterFill({ uri, seed = 0 }: { uri?: string | null; seed?: stri
       <AppImage uri={uri} seed={seed} blurRadius={32} style={FILL as StyleProp<ImageStyle>} />
       <View style={[FILL, { backgroundColor: "rgba(0,0,0,0.45)" }]} />
       <AppImage uri={uri} seed={seed} contentFit="contain" style={FILL as StyleProp<ImageStyle>} />
+    </View>
+  );
+}
+
+/**
+ * The whole poster at its own proportions: the box takes the image's real
+ * width:height once it loads (nothing cropped, no letterbox), so a card grows
+ * to fit whatever the organiser uploaded. Before it loads — or with no image —
+ * it holds `fallbackRatio`. Very tall/wide uploads are clamped to stay sane.
+ */
+export function RatioImage({
+  uri,
+  seed = 0,
+  fallbackRatio = 16 / 10,
+  min = 0.62,
+  max = 2.2,
+  children,
+}: {
+  uri?: string | null;
+  seed?: string | number;
+  fallbackRatio?: number;
+  min?: number;
+  max?: number;
+  children?: React.ReactNode;
+}) {
+  const resolved = assetUrl(uri ?? undefined);
+  const real = isUsableImageUrl(resolved);
+  const [ratio, setRatio] = useState(fallbackRatio);
+  const [failed, setFailed] = useState(false);
+  return (
+    <View style={{ aspectRatio: ratio }}>
+      {real && !failed ? (
+        <Image
+          source={{ uri: resolved }}
+          style={FILL as StyleProp<ImageStyle>}
+          contentFit="cover"
+          transition={250}
+          cachePolicy="memory-disk"
+          onLoad={(e) => {
+            const w = e?.source?.width;
+            const h = e?.source?.height;
+            if (w && h) setRatio(Math.min(max, Math.max(min, w / h)));
+          }}
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <AppImage uri={null} seed={seed} style={FILL as StyleProp<ImageStyle>} />
+      )}
+      {children}
     </View>
   );
 }

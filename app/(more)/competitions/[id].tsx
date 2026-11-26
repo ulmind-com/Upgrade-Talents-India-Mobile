@@ -1,5 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Pressable, Animated } from "react-native";
+import { FormattedDescription, PrizeCard, findPrizeLine } from "@/components/FormattedDescription";
+import * as DocumentPicker from "expo-document-picker";
+import { compImage, COMP_POSTER_RATIO, parseAgeRange, ageFromDob, ageFit } from "@/lib/competition";
+import { Image } from "expo-image";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Shine } from "@/components/Shine";
+import { EntryFlow, type EntryCategory } from "@/components/competition/EntryFlow";
+import { RegistrationSuccess, type RegistrationResult } from "@/components/RegistrationSuccess";
+import { View, Pressable, Animated, Modal } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import * as SecureStore from "expo-secure-store";
@@ -8,6 +16,12 @@ import * as Haptics from "expo-haptics";
 import {
   Trophy, Upload, Check, Heart, Medal, Crown, CalendarDays, ShieldCheck,
   Gavel, Users as UsersIcon, Sparkles, Lock, CreditCard, Banknote, Share2, FileText, ChevronRight,
+  ArrowRight,
+  ArrowLeft,
+  Image as ImageIcon,
+  FolderOpen,
+  Users,
+  Ticket,
 } from "lucide-react-native";
 import { SubScreen } from "@/components/SubScreen";
 import { ParallaxDetailScreen } from "@/components/ParallaxHero";
@@ -58,6 +72,8 @@ export default function CompetitionDetail() {
 
   const [registered, setRegistered] = useState(false);
   const [regInfo, setRegInfo] = useState<any | null>(null);
+  /** Registered, but the entry fee isn't paid yet (online order left open). */
+  const [pendingReg, setPendingReg] = useState<any | null>(null);
   const [rules, setRules] = useState(false);
   const [payMode, setPayMode] = useState<"ONLINE" | "CASH">("ONLINE");
   const [selectedCat, setSelectedCat] = useState<string>("");
@@ -65,6 +81,11 @@ export default function CompetitionDetail() {
   const [files, setFiles] = useState<Record<string, Asset>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  /** Set when a registration lands — opens the full-screen "you're in" moment. */
+  const [won, setWon] = useState<RegistrationResult | null>(null);
+  /** The step-by-step entry flow (category → rules → payment → review). */
+  const [entryOpen, setEntryOpen] = useState(false);
+  const [entryError, setEntryError] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareData, setShareData] = useState<any>(null);
   const popup = usePopup();
@@ -73,76 +94,118 @@ export default function CompetitionDetail() {
   useEffect(() => setVotes({}), [lbQ.data]);
   const [voted, setVoted] = useState<Set<string>>(new Set());
 
-  /* remember registrations locally — the API has no "my registrations" read */
+  /* Registration used to be remembered on the phone, keyed only by the
+     competition — so one account's entry showed as "Registered" for every
+     account on the device, and never cleared. The server is the only truth
+     now; drop that old shared list. */
   useEffect(() => {
-    SecureStore.getItemAsync(REG_KEY)
-      .then((v) => { if (v && JSON.parse(v).includes(String(id))) setRegistered(true); })
-      .catch(() => {});
-  }, [id]);
-  // restore votes for this competition
+    SecureStore.deleteItemAsync(REG_KEY).catch(() => {});
+    SecureStore.deleteItemAsync(VOTE_KEY).catch(() => {});
+  }, []);
+  // votes are remembered per account (a SecureStore key can't hold "@")
+  const voteKey = user?.email ? `${VOTE_KEY}.${String(user.email).toLowerCase().replace(/[^a-z0-9._-]/g, "_")}` : null;
   useEffect(() => {
-    SecureStore.getItemAsync(VOTE_KEY)
+    setVoted(new Set());
+    if (!voteKey) return;
+    SecureStore.getItemAsync(voteKey)
       .then((v) => {
         const all = v ? JSON.parse(v) : {};
         const mine: string[] = all[String(id)] || [];
         if (mine.length) setVoted(new Set(mine));
       })
       .catch(() => {});
-  }, [id]);
+  }, [id, voteKey]);
 
   const rememberVote = async (pid: string) => {
+    if (!voteKey) return;
     try {
-      const all = JSON.parse((await SecureStore.getItemAsync(VOTE_KEY)) || "{}");
+      const all = JSON.parse((await SecureStore.getItemAsync(voteKey)) || "{}");
       const mine: string[] = all[String(id)] || [];
-      if (!mine.includes(pid)) { all[String(id)] = [...mine, pid]; await SecureStore.setItemAsync(VOTE_KEY, JSON.stringify(all)); }
+      if (!mine.includes(pid)) { all[String(id)] = [...mine, pid]; await SecureStore.setItemAsync(voteKey, JSON.stringify(all)); }
     } catch {}
   };
 
+  /** Ask the server whether *this* account is entered — the only source of truth. */
+  const [regTick, setRegTick] = useState(0);
   const remember = async () => {
-    setRegistered(true);
-    try {
-      const cur = JSON.parse((await SecureStore.getItemAsync(REG_KEY)) || "[]");
-      if (!cur.includes(String(id))) await SecureStore.setItemAsync(REG_KEY, JSON.stringify([...cur, String(id)]));
-    } catch {}
+    setRegistered(true); // the server just confirmed it; the re-read fills in the details
+    setRegTick((t) => t + 1);
   };
 
-  // Authoritative registration state — the backend now has a real read, so
-  // this replaces guessing from the leaderboard or local storage.
   useEffect(() => {
-    if (!user?.email) return;
     let alive = true;
-    competeApi.myRegistration(String(id))
+    // a different account (or none) starts from "not registered"
+    if (!user?.email) {
+      setRegistered(false);
+      setRegInfo(null);
+      setPendingReg(null);
+      setSubmitted(false);
+      return;
+    }
+    competeApi
+      .myRegistration(String(id))
       .then((reg: any) => {
-        if (!alive || !reg?.is_registered) return;
-        setRegInfo(reg);
-        if (reg.is_confirmed !== false) { setRegistered(true); remember(); }
-        if (reg.has_submitted || reg.submission_id) setSubmitted(true);
+        if (!alive) return;
+        const dead = /CANCEL|EXPIRE|REJECT/i.test(String(reg?.status || ""));
+        // confirmed = paid, free, or cash-on-spot
+        const ok = !!reg?.is_registered && reg.is_confirmed !== false && !dead;
+        setRegistered(ok);
+        setRegInfo(ok ? reg : null);
+        setSubmitted(ok && !!(reg.has_submitted || reg.submission_id));
+        // registered but the online fee is still unpaid — offer to finish it
+        setPendingReg(!ok && reg?.is_registered && !dead ? reg : null);
       })
-      .catch(() => {});
-    return () => { alive = false; };
-  }, [id, user?.email]);
+      .catch(() => {
+        // couldn't ask the server: if they're on the standings, they're in
+        if (!alive) return;
+        const em = String(user.email).toLowerCase();
+        if (rows.some((r: any) => String(r.email || r.participant_id || "").toLowerCase() === em)) setRegistered(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [id, user?.email, regTick]);
 
-  // Fallback: if they already appear on the leaderboard, reflect that too.
-  useEffect(() => {
-    if (!user?.email || registered) return;
-    if (rows.some((r: any) => (r.participant_id || r.email || "").toLowerCase() === String(user.email).toLowerCase())) remember();
-  }, [rows.length, user?.email]);
-
-  const fields: { name: string; required?: boolean }[] = comp?.dynamic_submission_fields || [];
-  const deadline = comp?.registration_deadline;
   const feeAmt = Number(comp?.participation_fee ?? comp?.entry_fee ?? comp?.fee ?? 0);
+  const fields: { name: string; required?: boolean }[] = comp?.dynamic_submission_fields || [];
+  // the member's age from their profile DOB — drives "Eligible / Age N / Open age"
+  const userAge = ageFromDob((user as any)?.date_of_birth || (user as any)?.dob);
+  const entryCats: EntryCategory[] = (Array.isArray((comp as any)?.categories) ? (comp as any).categories : [])
+    .map((cat: any) => {
+      if (typeof cat === "string") {
+        const range = parseAgeRange(cat);
+        return { name: cat, fee: Number(comp?.participation_fee ?? comp?.entry_fee ?? comp?.fee ?? 0), ageLabel: range.label, fit: ageFit(range, userAge) };
+      }
+      const name = cat?.name || cat?.category_name || cat?.title;
+      if (!name) return null;
+      const f = cat.fee ?? cat.entry_fee ?? cat.participation_fee ?? cat.price ?? comp?.participation_fee ?? comp?.entry_fee ?? comp?.fee ?? 0;
+      const range = parseAgeRange(cat);
+      return { name: String(name), fee: Number(f) || 0, ageLabel: range.label, description: cat.description || null, fit: ageFit(range, userAge) };
+    })
+    .filter(Boolean) as EntryCategory[];
+  /** The real fee range across categories ("₹1,500 – ₹2,000"), or the single fee. */
+  const feeText = (() => {
+    const fees = entryCats.length ? entryCats.map((x) => x.fee) : [feeAmt];
+    const lo = Math.min(...fees);
+    const hi = Math.max(...fees);
+    return hi <= 0 ? "Free entry" : lo === hi ? formatINR(lo) : `${formatINR(lo)} – ${formatINR(hi)}`;
+  })();
+  const hasFee = feeAmt > 0 || entryCats.some((x) => x.fee > 0);
+  const deadline = comp?.registration_deadline;
   const open = !deadline || new Date(deadline).getTime() > Date.now();
   const step: "register" | "submit" | "done" = !registered ? "register" : fields.length && !submitted ? "submit" : "done";
 
+  // inside the entry flow (a Modal, above the toast layer) errors show inline
   const flash = (tone: "success" | "error", text: string, title?: string) =>
-    popup.show(tone, title || (tone === "success" ? "Done" : "Heads up"), text);
+    entryOpen && tone === "error" ? setEntryError(text) : popup.show(tone, title || (tone === "success" ? "Done" : "Heads up"), text);
 
+  // the entry being paid for online (filled in just before Razorpay opens)
+  const paying = useRef<Omit<RegistrationResult, "method"> | null>(null);
   const checkout = useCheckout({
-    onDone: async () => {
+    onDone: async (ref) => {
       await remember();
       setBusy(null);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      flash("success", "Entry fee paid — submit your entry when ready.", "Registered");
+      setWon({ ...(paying.current || { title: comp?.title || comp?.name || "Competition", fee: feeAmt }), reference: ref || paying.current?.reference, method: "ONLINE", verified: true });
     },
   });
 
@@ -151,11 +214,24 @@ export default function CompetitionDetail() {
     else if (checkout.cancelled) { setBusy(null); flash("error", "Payment cancelled. Register again to finish.", "Cancelled"); checkout.clear(); }
   }, [checkout.error, checkout.cancelled]);
 
-  const pick = async (name: string) => {
+  /* Picking an entry file: first ask where from — the photo/video gallery or
+     the phone's files (documents, audio, video, anything) — then open that. */
+  const [pickFor, setPickFor] = useState<string | null>(null);
+  const pick = (name: string) => setPickFor(name);
+
+  const fromGallery = async (name: string) => {
     const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images", "videos"], quality: 0.7 });
     if (!res.canceled && res.assets?.[0]) {
       const a = res.assets[0];
       setFiles((s) => ({ ...s, [name]: { uri: a.uri, name: a.fileName || a.uri.split("/").pop() || "entry", type: a.mimeType || (a.type === "video" ? "video/mp4" : "image/jpeg") } }));
+    }
+  };
+
+  const fromFiles = async (name: string) => {
+    const res = await DocumentPicker.getDocumentAsync({ type: "*/*", copyToCacheDirectory: true, multiple: false });
+    if (!res.canceled && res.assets?.[0]) {
+      const a = res.assets[0];
+      setFiles((s) => ({ ...s, [name]: { uri: a.uri, name: a.name || a.uri.split("/").pop() || "entry", type: a.mimeType || "application/octet-stream" } }));
     }
   };
 
@@ -170,43 +246,44 @@ export default function CompetitionDetail() {
         ? await competeApi.categoryEligibility(String(id), activeCat, dob)
         : await competeApi.eligibility(String(id));
       if (!el.eligible) { flash("error", el.reason || "You are not eligible for this competition.", "Not eligible"); return; }
-      const fee = Number(comp?.participation_fee ?? comp?.entry_fee ?? comp?.fee ?? 0);
+      const fee = entryCats.find((x) => x.name === activeCat)?.fee ?? Number(comp?.participation_fee ?? comp?.entry_fee ?? comp?.fee ?? 0);
       // Cash on Spot only makes sense when there is actually a fee to collect.
       const mode = fee > 0 ? payMode : "ONLINE";
       const res = activeCat
         ? await competeApi.registerInCategory(String(id), activeCat, { rules_accepted: true, payment_method: mode, date_of_birth: dob })
         : await competeApi.register(String(id), true, mode);
 
-      // Cash on Spot (or a server-confirmed entry) skips the gateway entirely.
-      if (mode === "CASH" || res?.payment_method === "CASH" || res?.status === "CONFIRMED" || !res?.payment_info) {
+      const isCash = mode === "CASH" || res?.payment_method === "CASH";
+      // the backend names it `reference` (the website reads the same field)
+      const ref = res?.reference || res?.registration_reference || res?.order_reference || null;
+      const base = { title: comp?.title || comp?.name || "Competition", category: res?.category || activeCat || null, reference: ref, fee };
+
+      // Cash on Spot, a free entry, or one the server already confirmed: no gateway.
+      if (isCash || res?.status === "CONFIRMED" || fee <= 0) {
         await remember();
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-        if (mode === "CASH" || res?.payment_method === "CASH") {
-          flash("success", `You're in! Pay ₹${fee} in cash at the venue counter on event day, then submit your entry.`, "Cash on Spot");
-        } else {
-          flash("success", "You're in — submit your entry when ready.", "Registered");
-        }
+        setEntryOpen(false);
+        setWon({ ...base, method: isCash ? "CASH" : fee > 0 ? "ONLINE" : "FREE" });
         return;
       }
 
-      // Paid entries go through Razorpay first; free ones confirm immediately.
-      if (res?.payment_info && res?.status !== "CONFIRMED" && res?.order_reference) {
-        const opened = checkout.start({
-          paymentInfo: res.payment_info,
-          amount: Number(res.payable_amount ?? comp?.entry_fee ?? comp?.fee ?? 0),
-          description: `Entry — ${comp?.title || comp?.name || "Competition"}`,
-          context: { kind: "competition", competitionId: String(id), orderReference: res.order_reference },
-        });
-        if (!opened.opened) flash("error", opened.reason || "Could not open the payment sheet.");
+      // Online: the entry stays PENDING until Razorpay is paid and verified.
+      if (!res?.payment_info || !ref) {
+        flash("error", "The payment gateway didn't respond. Try again, or choose Cash on Spot.", "Payment unavailable");
         return;
       }
-
-      await remember();
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      flash("success", "You're in — submit your entry when ready.", "Registered");
+      paying.current = base;
+      setEntryOpen(false); // Razorpay opens over the screen, not over the flow
+      const opened = checkout.start({
+        paymentInfo: res.payment_info,
+        amount: Number(res.payable_amount ?? fee),
+        description: `Entry — ${base.title}`,
+        context: { kind: "competition", competitionId: String(id), orderReference: ref },
+      });
+      if (!opened.opened) flash("error", opened.reason || "Could not open the payment sheet.");
+      return;
     } catch (e) {
       const m = e instanceof ApiError ? e.message : "Could not register.";
-      if (/already/i.test(m)) { await remember(); flash("success", "We synced your existing registration.", "Already registered"); }
+      if (/already/i.test(m)) { await remember(); setEntryOpen(false); flash("success", "We synced your existing registration.", "Already registered"); }
       else flash("error", m);
     } finally { setBusy(null); }
   };
@@ -251,7 +328,8 @@ export default function CompetitionDetail() {
     }
   };
 
-  if (compQ.loading) return <SubScreen eyebrow="Competition" title="Loading…"><Skeleton h={200} radius={22} /></SubScreen>;
+  // first load only: a skeleton shaped like the screen itself (pull-to-refresh keeps the page up)
+  if (compQ.loading && !comp) return <CompSkeleton onBack={() => (router.canGoBack() ? router.back() : router.replace("/(more)/competitions"))} />;
   if (!comp) return <SubScreen eyebrow="Competition" title="Not found"><Txt size={14} tone="muted">This competition is no longer available.</Txt></SubScreen>;
 
   const STEPS = ["Register", fields.length ? "Submit" : null, "Done"].filter(Boolean) as string[];
@@ -259,12 +337,15 @@ export default function CompetitionDetail() {
 
   return (
     <ParallaxDetailScreen
-      image={comp.image_url || comp.banner_url}
+      image={compImage(comp)}
+      imageRatio={COMP_POSTER_RATIO}
       seed={comp._id}
       title={comp.title || comp.name}
       refreshing={lbQ.refreshing}
       onRefresh={() => { lbQ.refresh(); compQ.reload(); }}
       onBack={() => (router.canGoBack() ? router.back() : router.replace("/(more)/competitions"))}
+      bottomPad={110}
+      footer={<LeaderboardDock rows={rows} accent={g1} onOpen={() => router.push(`/(more)/leaderboard?competition=${id}`)} />}
       heroOverlay={
         <>
           {comp.category ? (
@@ -310,6 +391,38 @@ export default function CompetitionDetail() {
         <>
           {popup.node}
           {checkout.sheet}
+          <SourceSheet
+            visible={!!pickFor}
+            onClose={() => setPickFor(null)}
+            onGallery={() => { const n = pickFor; setPickFor(null); if (n) setTimeout(() => fromGallery(n), 250); }}
+            onFiles={() => { const n = pickFor; setPickFor(null); if (n) setTimeout(() => fromFiles(n), 250); }}
+          />
+          <EntryFlow
+            visible={entryOpen}
+            onClose={() => setEntryOpen(false)}
+            title={comp?.title || comp?.name || "Competition"}
+            accent={g1}
+            userAge={userAge}
+            categories={entryCats}
+            baseFee={feeAmt}
+            category={activeCat}
+            onCategory={(x) => { setEntryError(null); setSelectedCat(x); }}
+            rulesText={comp?.rules || null}
+            eligibility={comp?.min_age || comp?.max_age ? `Open to ages ${comp.min_age ?? 0}${comp.max_age ? `–${comp.max_age}` : "+"}` : null}
+            accepted={rules}
+            onAccepted={setRules}
+            payMode={payMode}
+            onPayMode={setPayMode}
+            busy={busy === "reg"}
+            error={entryError}
+            onSubmit={() => { setEntryError(null); register(); }}
+          />
+          <RegistrationSuccess
+            result={won}
+            needsEntry={fields.length > 0 && !submitted}
+            onSubmitEntry={() => setWon(null)}
+            onClose={() => setWon(null)}
+          />
           <ShareSheet
             visible={shareOpen}
             message={shareData?.share_text || `Check out ${comp.title || comp.name || "this competition"} on Upgrade Talents India! Compete, win cash prizes & perform live on stage.`}
@@ -317,7 +430,7 @@ export default function CompetitionDetail() {
             onClose={() => setShareOpen(false)}
             links={shareData?.social_share_links}
             card={{
-              image: shareData?.image_url || comp.image_url || comp.banner_url,
+              image: shareData?.image_url || compImage(comp),
               title: shareData?.title || comp.title || comp.name || "Competition",
               meta: shareData?.category || comp.category || (comp.prize ? `Prize pool ${comp.prize}` : null),
             }}
@@ -326,10 +439,21 @@ export default function CompetitionDetail() {
       }
     >
 
+      {/* ── Prize — the organiser's prize line (or the prize field), right above the info rows ── */}
+      {(() => {
+        const prize = findPrizeLine(comp.description) || (comp.prize ? String(comp.prize) : null);
+        return prize ? (
+          <FadeInUp>
+            <View style={{ marginBottom: 12 }}>
+              <PrizeCard text={prize} />
+            </View>
+          </FadeInUp>
+        ) : null;
+      })()}
+
       {/* ── Clean info rows ── */}
       <FadeInUp>
         <InfoCard style={{ marginBottom: 18 }}>
-          {comp.prize ? <InfoRow icon={<Trophy size={19} color={g1} />} label="Prize pool" value={String(comp.prize)} /> : null}
           <InfoRow
             dateChip={deadline ? <DateChip day={splitDate(deadline).day} month={splitDate(deadline).month} /> : undefined}
             icon={!deadline ? <CalendarDays size={19} color={c.accent} /> : undefined}
@@ -340,8 +464,8 @@ export default function CompetitionDetail() {
           <InfoRow
             icon={<Sparkles size={19} color={feeAmt > 0 ? c.accent : c.success} />}
             label="Entry fee"
-            value={feeAmt > 0 ? formatINR(feeAmt) : "FREE"}
-            valueColor={feeAmt > 0 ? undefined : c.success}
+            value={hasFee ? feeText : "FREE"}
+            valueColor={hasFee ? undefined : c.success}
           />
           {comp.min_age || comp.max_age ? (
             <InfoRow icon={<ShieldCheck size={19} color={c.accent} />} label="Eligibility" value={`Age ${comp.min_age ?? 0}${comp.max_age ? `–${comp.max_age}` : "+"}`} />
@@ -444,60 +568,66 @@ export default function CompetitionDetail() {
               <Lock size={15} color={c.danger} />
               <Txt size={13.5} tone="danger" font="sansSemi">Registration has closed for this competition.</Txt>
             </View>
+          ) : step === "register" && pendingReg ? (
+            <>
+              <View style={{ flexDirection: "row", gap: 10, alignItems: "flex-start", padding: 12, borderRadius: 14, backgroundColor: c.warning + "14", borderWidth: 1, borderColor: c.warning + "44" }}>
+                <CreditCard size={16} color={c.warning} style={{ marginTop: 1 }} />
+                <View style={{ flex: 1, gap: 3 }}>
+                  <Txt size={14} font="sansBold" style={{ color: c.fg }}>{"You're registered — payment pending"}</Txt>
+                  <Txt size={12.5} tone="muted" lh={17}>
+                    {[pendingReg.category ? titleCase(pendingReg.category) : null, pendingReg.registration_reference].filter(Boolean).join("  ·  ") || "Finish paying the entry fee to confirm your spot."}
+                  </Txt>
+                </View>
+              </View>
+              <Button
+                label="Complete payment"
+                full
+                size="lg"
+                onPress={() => {
+                  setEntryError(null);
+                  if (pendingReg.category) setSelectedCat(String(pendingReg.category));
+                  setEntryOpen(true);
+                }}
+                iconRight={<ArrowRight size={17} color={c.onAccent} />}
+              />
+            </>
           ) : step === "register" ? (
             <>
-              {cats.length > 1 ? (
-                <View style={{ gap: 9 }}>
-                  <Txt size={11} font="monoMed" tone="subtle" tracking={2} uppercase>Choose your category</Txt>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                    {cats.map((cat) => {
-                      const on = activeCat === cat;
-                      return (
-                        <Pressable key={cat} onPress={() => setSelectedCat(cat)} style={{ paddingHorizontal: 15, height: 40, justifyContent: "center", borderRadius: 999, borderWidth: on ? 0 : 1, borderColor: c.border, backgroundColor: on ? g1 : c.surface2 }}>
-                          <Txt size={13} font="sansBold" style={{ color: on ? "#fff" : c.fgMuted }}>{titleCase(cat)}</Txt>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </View>
-              ) : null}
-
-              <Pressable onPress={() => setRules((r) => !r)} style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
-                <View style={{ width: 22, height: 22, borderRadius: 7, borderWidth: 2, borderColor: rules ? g1 : c.borderStrong, backgroundColor: rules ? g1 : "transparent", alignItems: "center", justifyContent: "center", marginTop: 1 }}>
-                  {rules ? <Check size={13} color="#fff" /> : null}
-                </View>
-                <Txt size={13.5} tone="muted" lh={19} style={{ flex: 1 }}>I have read and accept the competition rules and eligibility criteria.</Txt>
-              </Pressable>
-
-              {/* Payment mode — only when there's a fee to pay */}
-              {Number(comp.participation_fee ?? comp.entry_fee ?? comp.fee ?? 0) > 0 ? (
-                <View style={{ gap: 10 }}>
-                  <Txt size={11} font="monoMed" tone="subtle" tracking={2} uppercase>How you'll pay</Txt>
-                  <View style={{ flexDirection: "row", gap: 10 }}>
-                    <PayModeCard
-                      active={payMode === "ONLINE"} onPress={() => setPayMode("ONLINE")} tint={g1}
-                      icon={<CreditCard size={17} color={payMode === "ONLINE" ? g1 : c.fgMuted} />}
-                      title="Pay online" sub="Razorpay · instant"
+              {/* a short summary — the choices themselves happen in the entry flow */}
+              {(() => {
+                return (
+                  <View style={{ borderRadius: 16, borderWidth: 1, borderColor: c.border, backgroundColor: c.surface2 }}>
+                    <SummaryRow
+                      icon={<Users size={16} color={g1} />}
+                      label={entryCats.length > 1 ? `${entryCats.length} categories` : "Category"}
+                      value={entryCats.length ? entryCats.map((x) => titleCase(x.name)).join("  ·  ") : "Open to all"}
                     />
-                    <PayModeCard
-                      active={payMode === "CASH"} onPress={() => setPayMode("CASH")} tint={g1}
-                      icon={<Banknote size={17} color={payMode === "CASH" ? g1 : c.fgMuted} />}
-                      title="Cash on Spot" sub={`₹${Number(comp.participation_fee ?? comp.entry_fee ?? comp.fee ?? 0)} at venue`}
-                    />
+                    <SummaryRow icon={<Ticket size={16} color={g1} />} label="Entry fee" value={feeText} divider />
+                    {hasFee ? <SummaryRow icon={<CreditCard size={16} color={g1} />} label="Payment" value="Online or Cash on Spot" divider /> : null}
                   </View>
-                  {payMode === "CASH" ? (
-                    <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-start", borderRadius: 12, backgroundColor: c.warning + "14", borderWidth: 1, borderColor: c.warning + "44", padding: 11 }}>
-                      <Banknote size={14} color={c.warning} style={{ marginTop: 1 }} />
-                      <Txt size={12} tone="muted" lh={16} style={{ flex: 1 }}>Your seat is held now. Carry the exact entry fee in cash and pay at the venue counter on event day.</Txt>
-                    </View>
-                  ) : null}
+                );
+              })()}
+              <View>
+                <Button
+                  label="Enter competition"
+                  full
+                  size="lg"
+                  onPress={() => {
+                    setEntryError(null);
+                    const cur = entryCats.find((x) => x.name === activeCat);
+                    if (cur?.fit === "no") {
+                      const ok = entryCats.find((x) => x.fit === "ok") || entryCats.find((x) => x.fit === "open") || entryCats.find((x) => x.fit !== "no");
+                      if (ok) setSelectedCat(ok.name);
+                    }
+                    setEntryOpen(true);
+                  }}
+                  iconRight={<ArrowRight size={17} color={c.onAccent} />}
+                />
+                {/* the glint, clipped to the button's pill (its glow stays outside) */}
+                <View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, borderRadius: 999, overflow: "hidden" }}>
+                  <Shine />
                 </View>
-              ) : null}
-
-              <Button
-                label={payMode === "CASH" && Number(comp.participation_fee ?? comp.entry_fee ?? comp.fee ?? 0) > 0 ? "Reserve my spot" : "Register to compete"}
-                full size="lg" loading={busy === "reg"} disabled={!rules} onPress={register} icon={<Trophy size={16} color={c.onAccent} />}
-              />
+              </View>
             </>
           ) : step === "submit" ? (
             <>
@@ -538,7 +668,8 @@ export default function CompetitionDetail() {
               <Txt size={16} font="sansBold" style={{ flex: 1 }}>About this competition</Txt>
             </View>
             <View style={{ height: 1, backgroundColor: c.border }} />
-            <Txt size={15} lh={23} style={{ color: c.fg, opacity: 0.92 }}>{comp.description}</Txt>
+            {/* the website's reading of the organiser's text: prize card, headings, bullets… */}
+            <FormattedDescription content={comp.description} collapsible />
             {comp.rules ? (
               <>
                 <View style={{ height: 1, backgroundColor: c.border, marginTop: 2 }} />
@@ -714,6 +845,160 @@ function VoteButton({ active, count, tint, onPress }: { active: boolean; count: 
         <Heart size={14} color={active ? "#fff" : tint} fill={active ? "#fff" : "transparent"} />
         <Txt size={12.5} font="sansBold" style={{ color: active ? "#fff" : c.fg }}>{count}</Txt>
       </Animated.View>
+    </Pressable>
+  );
+}
+
+function SummaryRow({ icon, label, value, divider }: { icon: React.ReactNode; label: string; value: string; divider?: boolean }) {
+  const { c } = useTheme();
+  return (
+    <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12, paddingHorizontal: 14, paddingVertical: 12, borderTopWidth: divider ? 1 : 0, borderTopColor: c.border }}>
+      <View style={{ marginTop: 2 }}>{icon}</View>
+      <Txt size={12.5} tone="subtle" style={{ width: 96, marginTop: 1 }}>{label}</Txt>
+      <Txt size={13.5} font="sansSemi" lh={19} style={{ flex: 1, textAlign: "right" }}>{value}</Txt>
+    </View>
+  );
+}
+
+/** The competition screen's own shape, while it loads — hero, title, info, entry. */
+function CompSkeleton({ onBack }: { onBack: () => void }) {
+  const insets = useSafeAreaInsets();
+  return (
+    <View style={{ flex: 1, backgroundColor: "#08090C" }}>
+      <Skeleton h={340} radius={0} />
+      <Pressable onPress={onBack} hitSlop={10} accessibilityLabel="Back" style={{ position: "absolute", top: insets.top + 8, left: 16, width: 42, height: 42, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(20,22,30,0.85)", borderWidth: 1, borderColor: "rgba(255,255,255,0.12)" }}>
+        <ArrowLeft size={20} color="#fff" />
+      </Pressable>
+      <View style={{ padding: 20, gap: 12, marginTop: -40 }}>
+        <Skeleton h={26} w={90} radius={999} />
+        <Skeleton h={30} w="80%" radius={8} />
+        <Skeleton h={30} w="55%" radius={8} />
+        <View style={{ height: 8 }} />
+        <Skeleton h={150} radius={22} />
+        <Skeleton h={190} radius={22} />
+      </View>
+    </View>
+  );
+}
+
+/** Pinned to the bottom of the competition: the standings, one tap away. */
+function LeaderboardDock({ rows, accent, onOpen }: { rows: any[]; accent: string; onOpen: () => void }) {
+  const insets = useSafeAreaInsets();
+  const top = rows.slice(0, 3);
+  const lead = rows[0];
+  return (
+    <View
+      style={{
+        position: "absolute",
+        left: 0,
+        right: 0,
+        bottom: 0,
+        paddingHorizontal: 16,
+        paddingTop: 10,
+        paddingBottom: insets.bottom + 10,
+        backgroundColor: "rgba(8,9,12,0.96)",
+        borderTopWidth: 1,
+        borderTopColor: "rgba(255,255,255,0.07)",
+      }}
+    >
+      <Pressable
+        onPress={() => { Haptics.selectionAsync().catch(() => {}); onOpen(); }}
+        accessibilityRole="button"
+        accessibilityLabel="Open leaderboard"
+        style={({ pressed }) => ({
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 12,
+          minHeight: 62,
+          paddingHorizontal: 12,
+          borderRadius: 20,
+          backgroundColor: "#15161E",
+          // a soft halo around the whole bar (the shadow glows on iOS; the
+          // light rim + top sheen carry it on Android)
+          borderWidth: 1,
+          borderColor: "rgba(255,255,255,0.16)",
+          shadowColor: "#FFFFFF",
+          shadowOpacity: 0.14,
+          shadowRadius: 18,
+          shadowOffset: { width: 0, height: 0 },
+          elevation: 6,
+          transform: [{ scale: pressed ? 0.985 : 1 }],
+        })}
+      >
+        <LinearGradient
+          pointerEvents="none"
+          colors={["rgba(255,255,255,0.09)", "rgba(255,255,255,0)"]}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, borderRadius: 19 }}
+        />
+        {top.length ? (
+          <View style={{ flexDirection: "row" }}>
+            {top.map((r: any, i: number) => (
+              <View key={r.participant_id || r.email || i} style={{ width: 34, height: 34, borderRadius: 999, marginLeft: i ? -10 : 0, borderWidth: 2, borderColor: "#14151C", backgroundColor: ["#F5C542", "#C9D1DC", "#D08A4E"][i], overflow: "hidden", alignItems: "center", justifyContent: "center", zIndex: 3 - i }}>
+                {r.profile_photo ? (
+                  <Image source={{ uri: r.profile_photo }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+                ) : (
+                  <Txt size={13} font="sansBold" style={{ color: "#0B0C10" }}>{String(r.name || "?").charAt(0).toUpperCase()}</Txt>
+                )}
+              </View>
+            ))}
+          </View>
+        ) : (
+          <View style={{ width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: accent + "22" }}>
+            <Trophy size={18} color={accent} />
+          </View>
+        )}
+        <View style={{ flex: 1 }}>
+          <Txt size={15} font="sansBold" style={{ color: "#fff" }}>Leaderboard</Txt>
+          <Txt size={12} numberOfLines={1} style={{ color: "rgba(255,255,255,0.55)", marginTop: 1 }}>
+            {lead ? `${rows.length} contestants · #1 ${lead.name || "—"}` : "Rankings appear once voting starts"}
+          </Txt>
+        </View>
+        {/* white "View" with a glow ring */}
+        <View style={{ padding: 3, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.14)", shadowColor: "#FFFFFF", shadowOpacity: 0.6, shadowRadius: 10, shadowOffset: { width: 0, height: 0 } }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4, height: 32, paddingHorizontal: 13, borderRadius: 999, backgroundColor: "#FFFFFF" }}>
+            <Txt size={12.5} font="sansBold" style={{ color: "#0B0C10" }}>View</Txt>
+            <ChevronRight size={15} color="#0B0C10" />
+          </View>
+        </View>
+      </Pressable>
+    </View>
+  );
+}
+
+/** Where should the entry come from? Gallery (photos & videos) or Files (anything). */
+function SourceSheet({ visible, onClose, onGallery, onFiles }: { visible: boolean; onClose: () => void; onGallery: () => void; onFiles: () => void }) {
+  const insets = useSafeAreaInsets();
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+      <Pressable onPress={onClose} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }}>
+        <Pressable onPress={() => {}} style={{ backgroundColor: "#14151C", borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 16, paddingTop: 10, paddingBottom: insets.bottom + 16, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" }}>
+          <View style={{ alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.18)", marginBottom: 16 }} />
+          <Txt size={17} font="sansBold" style={{ color: "#fff", marginBottom: 4, paddingHorizontal: 4 }}>Add your entry</Txt>
+          <Txt size={13} style={{ color: "rgba(255,255,255,0.55)", marginBottom: 16, paddingHorizontal: 4 }}>Choose where to pick it from</Txt>
+          <View style={{ flexDirection: "row", gap: 10 }}>
+            <SourceOption icon={<ImageIcon size={22} color="#fff" />} title="Gallery" sub="Photos & videos" onPress={onGallery} />
+            <SourceOption icon={<FolderOpen size={22} color="#fff" />} title="Files" sub="Documents, audio, any file" onPress={onFiles} />
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function SourceOption({ icon, title, sub, onPress }: { icon: React.ReactNode; title: string; sub: string; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={() => { Haptics.selectionAsync().catch(() => {}); onPress(); }}
+      accessibilityRole="button"
+      style={({ pressed }) => ({ flex: 1, padding: 16, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.05)", borderWidth: 1, borderColor: "rgba(255,255,255,0.09)", gap: 12, transform: [{ scale: pressed ? 0.97 : 1 }] })}
+    >
+      <View style={{ width: 46, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.08)" }}>{icon}</View>
+      <View>
+        <Txt size={15} font="sansBold" style={{ color: "#fff" }}>{title}</Txt>
+        <Txt size={12} lh={16} style={{ color: "rgba(255,255,255,0.55)", marginTop: 2 }}>{sub}</Txt>
+      </View>
     </Pressable>
   );
 }

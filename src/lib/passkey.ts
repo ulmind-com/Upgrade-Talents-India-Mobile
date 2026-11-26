@@ -16,6 +16,14 @@ import { passkeyApi, tokenStore } from "@/lib/api";
  * WEBAUTHN_ORIGIN in config), so the passkey must have been created under that
  * same host and the host must be in the backend's WEBAUTHN_ORIGINS allowlist.
  */
+/**
+ * Passkeys are switched off for now: the app's rp domain, Android
+ * assetlinks.json and the backend's Android origin aren't set up yet, so a
+ * passkey button would only fail. Flip to true once those are in place —
+ * every passkey entry point (login, settings, profile) follows this flag.
+ */
+export const PASSKEYS_ENABLED = false;
+
 export class PasskeyUnavailable extends Error {
   constructor(msg = "Passkey sign-in isn't available in this build yet.") {
     super(msg);
@@ -43,6 +51,7 @@ function pk(): typeof PasskeysModule | null {
 
 /** True only when this build can actually run the passkey authenticator. */
 export function passkeyAvailable(): boolean {
+  if (!PASSKEYS_ENABLED) return false;
   const m = pk();
   try {
     return !!m && typeof m.isSupported === "function" && m.isSupported();

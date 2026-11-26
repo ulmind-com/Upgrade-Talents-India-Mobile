@@ -40,7 +40,7 @@ const PEACH = "#FFC08A";
 const CREAM = "#F4EDE4";
 const LINE = "rgba(255,255,255,0.09)";
 
-const U_MARK = require("../../assets/Logo/u-mark-512.png");
+const U_MARK = require("../../assets/Logo/u-mark-white-512.png");
 
 const TAPE_TEXT = "UPGRADE TALENTS INDIA  ✦  COMPETE  ✦  PERFORM  ✦  WIN  ✦  ";
 const SEAL_TEXT = "UPGRADE • TALENTS • INDIA • UPGRADE • TALENTS • INDIA • ";

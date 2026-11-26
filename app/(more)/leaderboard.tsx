@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { compImage } from "@/lib/competition";
 import {
   View,
   Pressable,
@@ -29,6 +30,7 @@ import {
   Check,
   Clock,
   Share2,
+  ImageDown,
   ArrowUpRight,
   Flag,
   Lock,
@@ -39,10 +41,11 @@ import { useAsync } from "@/lib/useAsync";
 import { useSession } from "@/context/Session";
 import { Txt, Skeleton, EmptyState } from "@/components/ui";
 import type { RoundInfo } from "@/lib/api";
-import { VerifiedTick } from "@/components/VerifiedBadge";
+import { VerifiedTick, VerifiedName, isVerified } from "@/components/VerifiedBadge";
 import { useAlert } from "@/components/Popup";
 import { playNavFeedback } from "@/lib/sound";
 import { ShareSheet } from "@/components/ShareSheet";
+import { ShareImageSheet } from "@/components/share/ShareImageSheet";
 import { Podium, RankLaurel, type PodiumEntry } from "@/components/Podium";
 import { useRealtime } from "@/lib/realtime";
 
@@ -271,15 +274,15 @@ export default function Leaderboard() {
   useRealtime([sel ? `competition:${sel}` : null], () => refreshRef.current());
 
   /** Pull-to-refresh and post-vote refresh: same board, fresh numbers, no skeleton. */
-  const refreshBoard = async () => {
+  const refreshBoard = async (silent = false) => {
     if (!sel) return;
     const id = ++reqId.current;
-    setRefreshing(true);
+    if (!silent) setRefreshing(true);
     const res = await fetchBoard(sel, activeRound, rounds.length > 1);
     if (id === reqId.current) applyBoard(res);
-    setRefreshing(false);
+    if (!silent) setRefreshing(false);
   };
-  refreshRef.current = refreshBoard;
+  refreshRef.current = () => refreshBoard(true);
 
   // List entrance — once per competition/round, not on every refresh
   useEffect(() => {
@@ -295,26 +298,39 @@ export default function Leaderboard() {
 
   // Compute effective rows
   const rawRows: Row[] = useMemo(() => {
-    if (activeCategory !== "ALL" && categoryLeaderboards[activeCategory]) {
-      return categoryLeaderboards[activeCategory];
-    }
     const data = lbData as any;
-    return (data?.leaderboard || toRows(data) || []) as Row[];
+    const all = (data?.leaderboard || toRows(data) || []) as Row[];
+    if (activeCategory === "ALL") return all;
+    const want = activeCategory.trim().toLowerCase();
+    // the server only sends boards for categories that have entrants (and none
+    // per round) — so match its key loosely, else rank that category ourselves
+    const key = Object.keys(categoryLeaderboards).find((k) => k.trim().toLowerCase() === want);
+    if (key) return categoryLeaderboards[key];
+    return all.filter((r) => String(r.category || "").trim().toLowerCase() === want).map((r, i) => ({ ...r, rank: i + 1 }));
   }, [lbData, activeCategory, categoryLeaderboards]);
 
   // Filtered by search
+  const searching = search.trim().length > 0;
   const filteredRows = useMemo(() => {
-    if (!search.trim()) return rawRows;
     const q = search.trim().toLowerCase();
-    return rawRows.filter(
-      (r) =>
-        r.name?.toLowerCase().includes(q) ||
-        r.email?.toLowerCase().includes(q) ||
-        r.participant_id?.toLowerCase().includes(q)
-    );
+    if (!q) return rawRows;
+    return rawRows
+      .map((r, i) => ({ ...r, rank: r.rank || i + 1 })) // keep each contestant's real rank
+      .filter((r: any) =>
+        [r.name, r.user_name, r.full_name, r.email, r.participant_id, r.registration_reference]
+          .some((v) => String(v || "").toLowerCase().includes(q))
+      );
   }, [rawRows, search]);
 
   // User's standing
+  /** Is this row the signed-in member? (same matching as "your standing") */
+  const isMe = (r: Row) => {
+    if (!user) return false;
+    const em = user.email?.toLowerCase();
+    const uid = (user as any).id || (user as any)._id;
+    return !!((r.email && em && r.email.toLowerCase() === em) || (r.participant_id && uid && r.participant_id === uid) || (r.participant_id && em && r.participant_id.toLowerCase() === em));
+  };
+
   const myStanding = useMemo(() => {
     if (!user) return null;
     const userEmail = user.email?.toLowerCase();
@@ -451,6 +467,7 @@ export default function Leaderboard() {
   /* Share — built from the live standings: the member's own rank when they're
      on the board, then the overall top three (not the active filter). */
   const [shareOpen, setShareOpen] = useState(false);
+  const [shareImage, setShareImage] = useState(false);
   const [shareData, setShareData] = useState<ShareLinkData | null>(null);
   // Site origin from the backend's page_url (honours its FRONTEND_URL).
   const siteOrigin = /^https?:\/\/[^/]+/i.exec(shareData?.page_url || "")?.[0] || "https://upgradetalentsindia.in";
@@ -509,9 +526,9 @@ export default function Leaderboard() {
     return null;
   }, [lbData, rawRows]);
 
-  const top1 = filteredRows[0] || null;
-  const top2 = filteredRows[1] || null;
-  const top3 = filteredRows[2] || null;
+  const top1 = rawRows[0] || null;
+  const top2 = rawRows[1] || null;
+  const top3 = rawRows[2] || null;
 
   /** A podium slot from a real leaderboard row — nothing invented. */
   const toEntry = (r: Row | null): PodiumEntry =>
@@ -521,9 +538,95 @@ export default function Leaderboard() {
           name: r.name || "Contestant",
           avatar: getAvatarSource(r.profile_photo, r.participant_id || r.email),
           score: formatScore(r.final_score ?? voteCount(r)),
-          badge: <VerifiedTick row={r} size={12} />,
+          verified: isVerified(r),
         }
       : null;
+
+  /* The shareable image: the screen's own podium and table (same components,
+     same styles), the top ten, framed with the brand strip. */
+  const SHARE_W = Math.min(SCREEN_W - 40, 420);
+  const shareSub = [activeCategory !== "ALL" ? activeCategory : null, isMultiRound && roundInfo ? roundInfo.name || `Round ${activeRound}` : null]
+    .filter(Boolean)
+    .join(" · ");
+  const shareBoard = (
+    <LinearGradient colors={["#FF385C", "#F9862B"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ width: SHARE_W, borderRadius: 26, padding: 5, alignSelf: "center" }}>
+      <View style={{ borderRadius: 22, overflow: "hidden", backgroundColor: "#08090C" }}>
+        <LinearGradient
+          colors={["rgba(124, 58, 237, 0.22)", "rgba(245, 158, 11, 0.07)", "transparent"]}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 0.5 }}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        />
+        <View style={{ alignItems: "center", paddingTop: 18 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <View style={{ width: 7, height: 7, borderRadius: 999, backgroundColor: "#FF385C" }} />
+            <Txt size={10.5} font="sansBold" tracking={2} style={{ color: "#FF6A84" }}>LIVE LEADERBOARD</Txt>
+          </View>
+          {shareSub ? <Txt size={12} tone="subtle" style={{ marginTop: 4 }}>{shareSub}</Txt> : null}
+        </View>
+
+        <Podium width={SHARE_W - 10} first={toEntry(top1)} second={toEntry(top2)} third={toEntry(top3)} replayKey={`share|${sel}|${activeCategory}|${activeRound ?? ""}`} bg="#08090C" />
+
+        <Txt size={26} font="display" align="center" numberOfLines={2} style={{ color: "#fff", paddingHorizontal: 16, marginTop: 4 }}>{compTitle}</Txt>
+
+        <View style={[styles.tableHeader, { marginTop: 14 }]}>
+          <View style={{ width: 44, alignItems: "center" }}><Txt size={10.5} font="sansBold" style={styles.headerLabel}>RANK</Txt></View>
+          <View style={{ flex: 1, paddingLeft: 8 }}><Txt size={10.5} font="sansBold" style={styles.headerLabel}>USER</Txt></View>
+          <View style={{ width: 60, alignItems: "flex-end", paddingRight: 10 }}><Txt size={10.5} font="sansBold" style={styles.headerLabel}>SCORE</Txt></View>
+          <View style={{ width: 58, alignItems: "flex-end", paddingRight: 4 }}><Txt size={10.5} font="sansBold" style={styles.headerLabel}>VOTES</Txt></View>
+        </View>
+        <View style={[styles.tableBody, { paddingBottom: 8 }]}>
+          {!rawRows.length ? (
+            <Txt size={13} tone="subtle" align="center" style={{ paddingVertical: 22 }}>
+              {activeCategory !== "ALL" ? `No one in ${activeCategory} yet — entries are open.` : "Rankings appear once voting starts."}
+            </Txt>
+          ) : null}
+          {rawRows.slice(0, 10).map((r, i) => {
+            const rankNum = r.rank || i + 1;
+            return (
+              <View key={r.participant_id || r.email || i} style={styles.tableRow}>
+                <View style={{ width: 44, alignItems: "center", justifyContent: "center" }}>
+                  {rankNum <= 3 ? (
+                    <RankLaurel rank={rankNum} size={40} medal />
+                  ) : (
+                    <View style={styles.tableNumCircle}>
+                      <Txt size={12.5} font="sansBold" style={{ color: "#E2E8F0" }}>{rankNum}</Txt>
+                    </View>
+                  )}
+                </View>
+                <View style={styles.userColumn}>
+                  <View style={[styles.tableAvatarRing, { borderColor: LIST_RING_COLORS[i % LIST_RING_COLORS.length] }]}>
+                    <Image source={getAvatarSource(r.profile_photo, r.participant_id || rankNum)} style={styles.avatarImg} contentFit="cover" />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <VerifiedName name={r.name || "Contestant"} row={r} size={13.5} lh={18} numberOfLines={2} style={{ color: "#FFFFFF" }} />
+                    {r.category ? <Txt size={10} tone="subtle" style={{ marginTop: 1 }}>{r.category}</Txt> : null}
+                  </View>
+                </View>
+                <View style={{ width: 60, alignItems: "flex-end", paddingRight: 10 }}>
+                  <Txt size={13.5} font="sansExt" style={{ color: "#FFFFFF" }}>{formatScore(r.final_score ?? voteCount(r))}</Txt>
+                </View>
+                <View style={{ width: 58, alignItems: "flex-end" }}>
+                  <View style={[styles.voteActionBtn, styles.voteStatic]}>
+                    <Heart size={12} color="#8A90A6" />
+                    <Txt size={11.5} font="sansBold" style={{ color: "#C5CAD6" }}>{voteCount(r)}</Txt>
+                  </View>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      </View>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingTop: 10, paddingBottom: 6 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Image source={require("../../assets/Logo/u-mark-white-512.png")} style={{ width: 22, height: 22 }} contentFit="contain" />
+          <Txt size={13.5} font="sansBold" style={{ color: "#fff" }}>Upgrade Talents India</Txt>
+        </View>
+        <Txt size={13.5} font="sansBold" style={{ color: "#fff" }}>#VoteNow</Txt>
+      </View>
+    </LinearGradient>
+  );
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -583,6 +686,20 @@ export default function Leaderboard() {
               <Share2 size={17} color="#FFFFFF" />
             </Pressable>
           ) : null}
+          {sel ? (
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                setShareImage(true);
+              }}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Share leaderboard as an image"
+              style={({ pressed }) => [styles.headerBtn, { transform: [{ scale: pressed ? 0.92 : 1 }] }]}
+            >
+              <ImageDown size={17} color="#FFFFFF" />
+            </Pressable>
+          ) : null}
           <Pressable
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -603,6 +720,8 @@ export default function Leaderboard() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -829,7 +948,9 @@ export default function Leaderboard() {
             loading={qualified.loading}
             roundName={roundInfo?.name || `Round ${activeRound}`}
             rows={qualifiedRows.filter(
-              (r: any) => !search.trim() || String(r.user_name || r.full_name || "").toLowerCase().includes(search.trim().toLowerCase())
+              (r: any) =>
+                !searching ||
+                [r.user_name, r.full_name, r.name, r.registration_reference].some((v) => String(v || "").toLowerCase().includes(search.trim().toLowerCase()))
             )}
           />
         ) : filteredRows.length > 0 ? (
@@ -839,6 +960,7 @@ export default function Leaderboard() {
                ══════════════════════════════════════════════════════════ */}
             {/* The blocks rise out of the floor on their own; replays when the
                 competition, round or category changes — not after a vote. */}
+            {searching ? null : (
             <View style={styles.podiumWrapper}>
               <Podium
                 width={SCREEN_W}
@@ -848,11 +970,13 @@ export default function Leaderboard() {
                 replayKey={`${sel}|${(lbData as any)?.round_number ?? ""}|${activeCategory}`}
               />
             </View>
+            )}
 
             {/* ══════════════════════════════════════════════════════════
                 SPOTLIGHT PRIZE POOL BANNER (Matching Screenshot)
                ══════════════════════════════════════════════════════════ */}
-            <View style={styles.spotlightBanner}>
+            {/* tucks under the podium normally; with the podium hidden (searching) it sits in flow */}
+            <View style={[styles.spotlightBanner, searching && { marginTop: 12 }]}>
               <Pressable
                 hitSlop={8}
                 onPress={() => {
@@ -947,7 +1071,7 @@ export default function Leaderboard() {
                     advancing && !(filteredRows[i + 1] as any)?.is_advancing && i < filteredRows.length - 1;
                   return (
                     <React.Fragment key={r.participant_id || r.email || i}>
-                    <View style={[styles.tableRow, out && { opacity: 0.55 }]}>
+                    <View style={[styles.tableRow, out && { opacity: 0.55 }, isMe(r) && styles.tableRowMe]}>
                       {/* 1. RANK BADGE (Laurel Wreath for 1,2,3; Dark circle for 4+) */}
                       <View style={{ width: 44, alignItems: "center", justifyContent: "center" }}>
                         {rankNum <= 3 ? (
@@ -973,18 +1097,7 @@ export default function Leaderboard() {
                         <View style={{ flex: 1, marginLeft: 10 }}>
                           {/* Full name, wrapping onto as many lines as it needs —
                               never cut off with an ellipsis. */}
-                          <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 4 }}>
-                            <Txt
-                              size={13.5}
-                              font="sansBold"
-                              style={{ color: "#FFFFFF", flexShrink: 1, lineHeight: 18 }}
-                            >
-                              {r.name || "Contestant"}
-                            </Txt>
-                            <View style={{ marginTop: 3 }}>
-                              <VerifiedTick row={r} size={11} />
-                            </View>
-                          </View>
+                          <VerifiedName name={r.name || "Contestant"} row={r} size={13.5} lh={18} style={{ color: "#FFFFFF" }} />
                           {r.category ? (
                             <Txt size={10} tone="subtle" style={{ marginTop: 1 }}>
                               {r.category}
@@ -1062,11 +1175,13 @@ export default function Leaderboard() {
         ) : (
           <EmptyState
             icon={<Trophy size={28} color="#9EA3B8" />}
-            title={search ? "No contestant matches search" : "No rankings available"}
+            title={searching ? "No contestant matches search" : activeCategory !== "ALL" ? `No one in ${activeCategory} yet` : "No rankings available"}
             subtitle={
-              search
+              searching
                 ? "Try searching with a different name."
-                : "Scores will appear once judging or voting commences."
+                : activeCategory !== "ALL"
+                  ? "Rankings for this category appear once its contestants are scored."
+                  : "Scores will appear once judging or voting commences."
             }
           />
         )}
@@ -1126,6 +1241,10 @@ export default function Leaderboard() {
         </Pressable>
       </Modal>
 
+      <ShareImageSheet visible={shareImage} onClose={() => setShareImage(false)} cta="Share leaderboard" dialogTitle={`${compTitle} — leaderboard`}>
+        {shareBoard}
+      </ShareImageSheet>
+
       <ShareSheet
         visible={shareOpen}
         title="Share leaderboard"
@@ -1133,7 +1252,7 @@ export default function Leaderboard() {
         message={shareMessage}
         url={`${siteOrigin}/leaderboard?competition=${sel ?? ""}`}
         card={{
-          image: shareData?.image_url || selectedComp?.image_url || selectedComp?.banner_url,
+          image: shareData?.image_url || compImage(selectedComp),
           title: `${compTitle} — Live leaderboard`,
           meta: top1 ? `Leading: ${top1.name || "Contestant"}` : null,
         }}
@@ -1248,14 +1367,7 @@ function QualifiedList({ loading, roundName, rows }: { loading: boolean; roundNa
               <Image source={getAvatarSource(r.profile_photo || r.avatar, r.user_email || i)} style={styles.avatarImg} contentFit="cover" />
             </View>
             <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 4 }}>
-                <Txt size={13.5} font="sansBold" lh={18} style={{ color: "#FFFFFF", flexShrink: 1 }}>
-                  {r.user_name || r.full_name || "Contestant"}
-                </Txt>
-                <View style={{ marginTop: 3 }}>
-                  <VerifiedTick row={r} size={11} />
-                </View>
-              </View>
+              <VerifiedName name={r.user_name || r.full_name || "Contestant"} row={r} size={13.5} lh={18} style={{ color: "#FFFFFF" }} />
               {r.category ? <Txt size={10.5} tone="subtle" style={{ marginTop: 1 }}>{r.category}</Txt> : null}
             </View>
             <View style={styles.zoneChip}>
@@ -1299,15 +1411,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  /* Absolutely centred so the title stays in the middle even though the
-     right side carries two buttons and the left only one. */
+  /* Title sits next to the back button and takes the room that's left, so
+     the three actions on the right can never run into it. */
   headerTitleWrap: {
-    position: "absolute",
-    left: 112,
-    right: 112,
-    top: 0,
-    bottom: 0,
-    alignItems: "center",
+    flex: 1,
+    marginHorizontal: 12,
     justifyContent: "center",
   },
   headerRight: {
@@ -1377,14 +1485,11 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255, 255, 255, 0.08)",
   },
   /* focus: the accent ring + a soft glow, nothing louder */
+  // border + tint only: toggling elevation/shadow on Android can rebuild the
+  // native view under the input, which drops focus and closes the keyboard
   searchBarOn: {
     borderColor: "rgba(255, 56, 92, 0.55)",
     backgroundColor: "#181A23",
-    shadowColor: "#FF385C",
-    shadowOpacity: 0.22,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 4,
   },
   searchIcon: {
     width: 38,
@@ -1546,6 +1651,37 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255, 255, 255, 0.04)",
+  },
+  // your own row: a lifted grey band with a white edge — calm, not alarming
+  // your own row: a rounded, lifted grey tile with a light rim — not a square band
+  tableRowMe: {
+    marginHorizontal: 8,
+    marginVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 18,
+    borderBottomWidth: 1,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.16)",
+    backgroundColor: "rgba(255, 255, 255, 0.07)",
+  },
+  meEdge: {
+    position: "absolute",
+    left: 0,
+    top: 8,
+    bottom: 8,
+    width: 3,
+    borderTopRightRadius: 3,
+    borderBottomRightRadius: 3,
+    backgroundColor: "#FFFFFF",
+  },
+  youChip: {
+    alignSelf: "flex-start",
+    marginTop: 3,
+    paddingHorizontal: 7,
+    height: 17,
+    borderRadius: 999,
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
   },
   userColumn: {
     flex: 1,

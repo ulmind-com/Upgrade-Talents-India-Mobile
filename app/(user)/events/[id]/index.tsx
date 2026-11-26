@@ -1,6 +1,11 @@
 import React, { useRef, useState } from "react";
-import { View, Text, Pressable, Animated, Share, Linking } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import Reanimated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
+import { BookedBy } from "@/components/booking/BookedBy";
+import { View, Text, Pressable, Animated, Share, Linking, useWindowDimensions } from "react-native";
+import { Image } from "expo-image";
+import { useLocalSearchParams, useRouter, useNavigation, useFocusEffect } from "expo-router";
+import { BackHandler } from "react-native";
+import { eventOrigin, tabHref } from "@/lib/tabOrigin";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
@@ -9,7 +14,7 @@ import {
 } from "lucide-react-native";
 import { useTheme } from "@/theme/ThemeProvider";
 import { getEventById, getRelatedEvents } from "@/lib/events";
-import { publicApi } from "@/lib/api";
+import { publicApi, assetUrl } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
 import { Txt, Badge, Button, Card, SectionLabel, Skeleton } from "@/components/ui";
 import { ShareSheet } from "@/components/ShareSheet";
@@ -20,7 +25,7 @@ import { FadeInUp } from "@/components/FadeInUp";
 import { Countdown } from "@/components/domain";
 import { DottedGrid } from "@/components/patterns";
 import { InfoCard, InfoRow, DateChip } from "@/components/InfoRows";
-import { formatEventDate, formatINR, splitDate, isPastEvent, isDeadlinePassed, isBookable } from "@/lib/format";
+import { formatEventDate, formatINR, splitDate, isPastEvent, isDeadlinePassed, isBookable, isUsableImageUrl } from "@/lib/format";
 
 const HERO = 380;
 
@@ -29,11 +34,46 @@ export default function EventDetail() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
+
+  /* Back goes where you came from. Opened straight from Home (or another tab)
+     → back to that tab. Opened from the Events list, or from another event's
+     "you might also like" → normal back within the Events stack. */
+  const navigation = useNavigation();
+  const [origin] = React.useState(() => {
+    const st: any = navigation.getState?.();
+    const below = st?.routes?.[(st?.index ?? 0) - 1]?.name;
+    return below && below !== "index" ? null : eventOrigin();
+  });
+  const goBack = React.useCallback(() => {
+    if (origin) router.navigate(tabHref(origin) as any);
+    else if (router.canGoBack()) router.back();
+    else router.replace("/(user)/events");
+  }, [origin, router]);
+  useFocusEffect(
+    React.useCallback(() => {
+      if (!origin) return;
+      const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+        goBack();
+        return true;
+      });
+      return () => sub.remove();
+    }, [origin, goBack])
+  );
   const { data: ev, loading } = useAsync(() => getEventById(String(id)), [id]);
   const { data: related } = useAsync(() => getRelatedEvents(String(id)), [id]);
 
   /* Shared with competition detail so the two heroes stay identical. */
-  const { onScroll, imgTranslate, imgScale, headerOpacity } = useParallaxHero(HERO);
+  /* The poster at its own proportions — full width, its real height, nothing
+     cropped and no blurred sides. The sheet overlaps the bottom by OVERLAP. */
+  const { width: W } = useWindowDimensions();
+  const OVERLAP = 26;
+  const [ratio, setRatio] = useState<number | null>(null);
+  const [imgFailed, setImgFailed] = useState(false);
+  const heroImg = assetUrl(ev?.image_url ?? undefined);
+  const hasImg = isUsableImageUrl(heroImg) && !imgFailed;
+  const imgH = hasImg && ratio ? Math.round(Math.min(W * 1.6, Math.max(W * 0.45, W / ratio))) : null;
+  const H = imgH ? imgH + OVERLAP : HERO;
+  const { onScroll, imgTranslate, imgScale, headerOpacity } = useParallaxHero(H);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareData, setShareData] = useState<any>(null);
 
@@ -89,23 +129,39 @@ export default function EventDetail() {
         scrollEventThrottle={16}
       >
         {/* Parallax hero */}
-        <View style={{ height: HERO, overflow: "hidden" }}>
-          <Animated.View style={{ width: "100%", height: "100%", transform: [{ translateY: imgTranslate }, { scale: imgScale }] }}>
-            <PosterFill uri={ev.image_url} seed={3} />
+        <View style={{ height: H, overflow: "hidden" }}>
+          <Animated.View style={{ width: "100%", height: imgH ?? "100%", transform: [{ translateY: imgTranslate }, { scale: imgScale }] }}>
+            {hasImg ? (
+              <Image
+                source={{ uri: heroImg }}
+                style={{ width: "100%", height: "100%" }}
+                contentFit="cover"
+                transition={250}
+                cachePolicy="memory-disk"
+                onLoad={(e) => {
+                  const w = e?.source?.width;
+                  const h = e?.source?.height;
+                  if (w && h) setRatio(w / h);
+                }}
+                onError={() => setImgFailed(true)}
+              />
+            ) : (
+              <PosterFill uri={null} seed={3} />
+            )}
           </Animated.View>
           <LinearGradient colors={["rgba(4,5,12,0.55)", "transparent", "rgba(4,5,12,0.5)", "rgba(4,5,12,0.9)"] as any} locations={[0, 0.32, 0.7, 1]} style={{ position: "absolute", width: "100%", height: "100%" }} />
-          <View style={{ position: "absolute", bottom: 46, left: 20, right: 20, flexDirection: "row", alignItems: "flex-end", gap: 14 }}>
+          <View style={{ position: "absolute", bottom: OVERLAP + 20, left: 20, right: 20, flexDirection: "row", alignItems: "flex-end", gap: 14 }}>
             <View style={{ alignItems: "center", backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 16, paddingVertical: 10, paddingHorizontal: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.2)" }}>
               <Txt size={26} font="display" style={{ color: "#fff" }} lh={28}>{d.day}</Txt>
               <Txt size={11} font="sansBold" style={{ color: "rgba(255,255,255,0.85)" }} tracking={1.5}>{d.month}</Txt>
             </View>
             <View style={{ flex: 1 }}>
               <View style={{ flexDirection: "row", gap: 8, marginBottom: 10 }}>
-                {ev.event_status === "live" ? <Badge label="Live now" tone="live" /> : over ? <Badge label={ev.event_status === "cancelled" ? "Cancelled" : "Ended"} tone={ev.event_status === "cancelled" ? "danger" : "neutral"} /> : deadlineOver ? <Badge label="Registration closed" tone="warning" /> : null}
+                {ev.event_status === "live" ? null : over ? <Badge label={ev.event_status === "cancelled" ? "Cancelled" : "Ended"} tone={ev.event_status === "cancelled" ? "danger" : "neutral"} /> : deadlineOver ? <Badge label="Registration closed" tone="warning" /> : null}
                 {!ev.price ? <Badge label="Free entry" tone="brand" /> : null}
                 {lowSeats ? <Badge label={`${seatsLeft} left`} tone="warning" /> : null}
               </View>
-              <Txt size={27} font="display" lh={30} tracking={-0.8} style={{ color: "#fff" }}>{ev.title}</Txt>
+              <Txt size={21} font="display" lh={25} tracking={-0.5} numberOfLines={3} style={{ color: "#fff" }}>{ev.title}</Txt>
             </View>
           </View>
         </View>
@@ -114,6 +170,9 @@ export default function EventDetail() {
         <View style={{ backgroundColor: "#08090C", borderTopLeftRadius: 28, borderTopRightRadius: 28, marginTop: -26, paddingTop: 26, paddingHorizontal: 20, gap: 24 }}>
           {/* grab handle */}
           <View style={{ alignSelf: "center", width: 42, height: 5, borderRadius: 999, backgroundColor: c.border, marginTop: -14 }} />
+
+          {/* Live now — a quiet line in the content, not a sticker on the poster */}
+          {ev.event_status === "live" ? <LiveLine /> : null}
 
           {/* Registration shut before the event itself */}
           {deadlineOver && !over ? (
@@ -154,11 +213,14 @@ export default function EventDetail() {
             </InfoCard>
           </FadeInUp>
 
+          {/* Who's going — real confirmed bookings */}
+          <BookedBy eventId={String(ev._id)} />
+
           {/* About */}
           <FadeInUp>
             <View style={{ gap: 12 }}>
               <Txt size={20} font="display" tracking={-0.5} uppercase>About this event</Txt>
-              <Txt size={15} tone="muted" lh={24}>{ev.description}</Txt>
+              <Txt size={15} tone="muted" lh={24} style={{ textAlign: "justify" }}>{ev.description}</Txt>
             </View>
           </FadeInUp>
 
@@ -215,7 +277,7 @@ export default function EventDetail() {
 
       {/* Floating back + share */}
       <View style={{ position: "absolute", top: insets.top + 8, left: 16, right: 16, flexDirection: "row", justifyContent: "space-between" }}>
-        <FloatBtn onPress={() => (router.canGoBack() ? router.back() : router.replace("/(user)/events"))}><ArrowLeft size={20} color={c.fg} /></FloatBtn>
+        <FloatBtn onPress={goBack}><ArrowLeft size={20} color={c.fg} /></FloatBtn>
         <FloatBtn onPress={share}><Share2 size={18} color={c.fg} /></FloatBtn>
       </View>
 
@@ -241,8 +303,9 @@ export default function EventDetail() {
           <Txt size={22} font="display" style={{ color: "#FF385C" }}>{formatINR(ev.price)}</Txt>
           {lowSeats ? <Txt size={11} font="sansBold" style={{ color: "#C9F24A", marginTop: 1 }}>Only {seatsLeft} seats left</Txt> : null}
         </View>
-        <View style={{ flex: 1 }}>
-          <Button label={over ? (ev.event_status === "cancelled" ? "Event cancelled" : "This event has ended") : deadlineOver ? "Registration closed" : !bookable ? "Booking closed" : ev.ticket_enabled === false ? "Register now" : "Book tickets"} disabled={!bookable} full size="lg" onPress={() => router.push(`/(user)/events/${ev._id}/book`)} icon={<Ticket size={17} color={c.onAccent} />} />
+        {/* a compact pill on the right — the price keeps the left */}
+        <View style={{ flex: 1, alignItems: "flex-end" }}>
+          <Button label={over ? (ev.event_status === "cancelled" ? "Event cancelled" : "This event has ended") : deadlineOver ? "Registration closed" : !bookable ? "Booking closed" : ev.ticket_enabled === false ? "Register now" : "Book tickets"} disabled={!bookable} size="sm" onPress={() => router.push(`/(user)/events/${ev._id}/book`)} icon={<Ticket size={15} color={c.onAccent} />} />
         </View>
       </View>
     </View>
@@ -255,5 +318,24 @@ function FloatBtn({ children, onPress }: { children: React.ReactNode; onPress: (
     <Pressable onPress={onPress} style={{ width: 42, height: 42, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.surfaceGlass, borderWidth: 1, borderColor: c.border }}>
       {children}
     </Pressable>
+  );
+}
+
+/** "● Live now · happening right now" — the dot breathes, nothing else moves. */
+function LiveLine() {
+  const p = useSharedValue(0);
+  React.useEffect(() => {
+    p.set(withRepeat(withTiming(1, { duration: 1100, easing: Easing.inOut(Easing.quad) }), -1, true));
+  }, [p]);
+  const ring = useAnimatedStyle(() => ({ opacity: 0.55 * (1 - p.value), transform: [{ scale: 1 + p.value * 1.4 }] }));
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: -6 }}>
+      <View style={{ width: 10, height: 10, alignItems: "center", justifyContent: "center" }}>
+        <Reanimated.View style={[{ position: "absolute", width: 10, height: 10, borderRadius: 999, backgroundColor: "#FF385C" }, ring]} />
+        <View style={{ width: 8, height: 8, borderRadius: 999, backgroundColor: "#FF385C" }} />
+      </View>
+      <Txt size={14} font="sansBold" style={{ color: "#fff" }}>Live now</Txt>
+      <Txt size={13} style={{ color: "rgba(255,255,255,0.55)" }}>Happening right now</Txt>
+    </View>
   );
 }

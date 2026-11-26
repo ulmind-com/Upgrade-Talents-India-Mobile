@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { View, TextInput, ScrollView, Pressable, Dimensions } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
+import { noteEventsListSeen } from "@/lib/tabOrigin";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { Search, CalendarX, MapPin, Users, Clock } from "lucide-react-native";
@@ -11,9 +12,10 @@ import { isPastEvent, formatEventDate, formatINR, splitDate } from "@/lib/format
 import { startsInText } from "@/lib/live";
 import { useAsync } from "@/lib/useAsync";
 import { Skeleton, EmptyState, ErrorState, Txt, Dot } from "@/components/ui";
-import { AppImage } from "@/components/AppImage";
+import { AppImage, PosterFill, RatioImage } from "@/components/AppImage";
 import { DateChip } from "@/components/InfoRows";
 import { FadeInUp } from "@/components/FadeInUp";
+import { PromoHeroBanner } from "@/components/PromoHeroBanner";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 const CUR_W = Math.min(300, SCREEN_W * 0.82);
@@ -77,11 +79,11 @@ function CurrentCard({ ev, onPress }: { ev: any; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} style={({ pressed }) => ({ width: CUR_W, transform: [{ scale: pressed ? 0.985 : 1 }] })}>
       <View style={{ borderRadius: 22, overflow: "hidden", backgroundColor: c.surface, borderWidth: 1, borderColor: c.border }}>
-        <View style={{ height: 172 }}>
-          <AppImage uri={ev.image_url} seed={ev._id} style={{ width: "100%", height: "100%" }} />
-          <LinearGradient colors={["rgba(0,0,0,0.15)", "transparent", "rgba(0,0,0,0.45)"] as any} style={{ position: "absolute", width: "100%", height: "100%" }} />
+        {/* the whole poster at its own proportions — the card grows to fit it */}
+        <RatioImage uri={ev.image_url} seed={ev._id}>
+          <LinearGradient colors={["rgba(0,0,0,0.2)", "transparent", "rgba(0,0,0,0.5)"] as any} style={{ position: "absolute", width: "100%", height: "100%" }} pointerEvents="none" />
           <View style={{ position: "absolute", top: 10, right: 10 }}><PriceTag price={ev.price} /></View>
-        </View>
+        </RatioImage>
         <View style={{ padding: 14, gap: 9 }}>
           <MetaLine ev={ev} />
           <Txt size={16} font="sansBold" lh={21} numberOfLines={2}>{ev.title}</Txt>
@@ -113,9 +115,10 @@ function UpcomingRow({ ev, onPress }: { ev: any; onPress: () => void }) {
       <View style={{ flexDirection: "row", gap: 12, alignItems: "flex-start" }}>
         <DateChip day={d.day} month={d.month} />
         <View style={{ flex: 1, gap: 9 }}>
-          <View style={{ height: 132, borderRadius: 18, overflow: "hidden", backgroundColor: c.surface2 }}>
-            <AppImage uri={ev.image_url} seed={ev._id} style={{ width: "100%", height: "100%" }} />
-            <View style={{ position: "absolute", top: 8, right: 8 }}><PriceTag price={ev.price} /></View>
+          <View style={{ borderRadius: 18, overflow: "hidden", backgroundColor: "#090a10" }}>
+            <RatioImage uri={ev.image_url} seed={ev._id}>
+              <View style={{ position: "absolute", top: 8, right: 8 }}><PriceTag price={ev.price} /></View>
+            </RatioImage>
           </View>
           <MetaLine ev={ev} />
           <Txt size={16} font="sansBold" lh={21} numberOfLines={2}>{ev.title}</Txt>
@@ -143,6 +146,8 @@ function SectionHead({ label, count }: { label: string; count?: number }) {
 export default function Events() {
   const { c } = useTheme();
   const router = useRouter();
+  // the list is actually on screen → an event opened from here should "back" to it
+  useFocusEffect(useCallback(() => { noteEventsListSeen(); }, []));
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState("all");
   const { data, loading, error, refreshing, refresh, reload } = useAsync(() => publicApi.upcomingEvents({ limit: 50 }), []);
@@ -179,6 +184,17 @@ export default function Events() {
         <Txt size={26} font="display" tracking={-0.6} style={{ color: "#fff" }}>Events</Txt>
         <Txt size={13} tone="muted" style={{ marginTop: 2 }}>Live shows, stages &amp; exclusive entry passes</Txt>
       </View>
+
+      {/* 3D Character Promo Banner — Zomato District Style */}
+      <FadeInUp>
+        <PromoHeroBanner
+          tag="Live Stage Passes"
+          title="Exclusive Shows & Concerts"
+          subtitle="Book VIP backstage entry & live stage passes"
+          characterSource={require("../../../assets/banners/3d_event_char.png")}
+          glowColor="rgba(255, 56, 92, 0.16)"
+        />
+      </FadeInUp>
 
       {/* Search */}
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: c.surface, borderRadius: 16, borderWidth: 1, borderColor: c.border, paddingHorizontal: 16, height: 50, marginBottom: 14 }}>

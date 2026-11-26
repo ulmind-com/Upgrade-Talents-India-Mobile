@@ -1,4 +1,5 @@
 import React, { useEffect, useReducer } from "react";
+import { compImage } from "@/lib/competition";
 import { View, Pressable, StyleSheet, type StyleProp, type ViewStyle } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { ChevronRight, Play, Radio } from "lucide-react-native";
@@ -174,7 +175,7 @@ export function LiveCompCard({ comp, onPress }: { comp: LiveCompetition; onPress
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [s.cCard, { opacity: pressed ? 0.85 : 1 }]}>
       <View style={s.cThumb}>
-        <AppImage uri={comp.image_url || comp.banner_url} seed={comp._id} style={StyleSheet.absoluteFill} />
+        <AppImage uri={compImage(comp)} seed={comp._id} style={StyleSheet.absoluteFill} />
       </View>
       <View style={{ flex: 1, gap: 6 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -239,7 +240,8 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: HAIR,
   },
-  cThumb: { width: 84, height: 84, borderRadius: 16, overflow: "hidden", backgroundColor: "#1A1C24" },
+  cThumb: { width: 84, height: 105, borderRadius: 16, // 4:5, the competition poster shape
+    overflow: "hidden", backgroundColor: "#1A1C24" },
 });
 
 /* ── home entry ───────────────────────────────────────────────────────── */
@@ -248,7 +250,7 @@ const s = StyleSheet.create({
  * "3 live now" — the home screen's door into the Live hub, off `/live/summary`.
  * Refreshes every minute; renders nothing while nothing is live.
  */
-export function LiveNowBar({ onPress, style }: { onPress: () => void; style?: StyleProp<ViewStyle> }) {
+export function LiveNowBar({ onPress, style, refreshKey = 0 }: { onPress: () => void; style?: StyleProp<ViewStyle>; refreshKey?: number }) {
   const [sum, setSum] = React.useState<LiveSummary | null>(null);
   useEffect(() => {
     let alive = true;
@@ -264,7 +266,7 @@ export function LiveNowBar({ onPress, style }: { onPress: () => void; style?: St
       alive = false;
       clearInterval(t);
     };
-  }, []);
+  }, [refreshKey]);
   if (!sum || !sum.total_live) return null;
   const parts = [
     sum.live_events_count ? `${sum.live_events_count} stream${sum.live_events_count > 1 ? "s" : ""}` : null,

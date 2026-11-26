@@ -42,6 +42,12 @@ function statusTone(s: string): "success" | "warning" | "danger" | "neutral" | "
   return "neutral";
 }
 
+/** "PENDING_PAYMENT" → "Pending payment" */
+const humanize = (s: string) => {
+  const t = s.replace(/[_-]+/g, " ").trim().toLowerCase();
+  return t ? t[0].toUpperCase() + t.slice(1) : "";
+};
+
 function ActivityCard({ item, tab, idx, onPress, onCancel, canceling }: { item: any; tab: Tab; idx: number; onPress: () => void; onCancel?: () => void; canceling?: boolean }) {
   const { c } = useTheme();
   const [g1, g2] = genz(idx);
@@ -50,27 +56,39 @@ function ActivityCard({ item, tab, idx, onPress, onCancel, canceling }: { item: 
   const cancelled = /cancel/i.test(status);
   const cat = pickCat(item);
   const date = pickDate(item);
+  const tone = statusTone(status);
+  const toneColor =
+    tone === "success" ? c.success : tone === "warning" ? c.warning : tone === "danger" ? c.danger : tone === "brand" ? c.accent : c.fgMuted;
   return (
-    <Card onPress={onPress} padding={12} style={cancelled ? { opacity: 0.55 } : undefined}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-        <LinearGradient colors={[g1, g2] as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ width: 46, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center" }}>
-          <Icon size={20} color="#fff" />
+    <Card onPress={onPress} padding={14} style={cancelled ? { opacity: 0.55 } : undefined}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+        <LinearGradient colors={[g1, g2] as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" }}>
+          <Icon size={21} color="#fff" />
         </LinearGradient>
-        <View style={{ flex: 1 }}>
-          <Txt size={14.5} font="sansBold" numberOfLines={1}>{pickTitle(item)}</Txt>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 7, marginTop: 3 }}>
-            {date ? <Txt size={12} tone="subtle">{formatEventDate(date)}</Txt> : null}
-            {date && cat ? <View style={{ width: 3, height: 3, borderRadius: 3, backgroundColor: c.fgSubtle }} /> : null}
-            {cat ? <Txt size={12} tone="subtle" numberOfLines={1}>{cat}</Txt> : null}
-          </View>
+
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Txt size={15} font="sansBold" numberOfLines={2} lh={20}>{pickTitle(item)}</Txt>
+          {date || cat ? (
+            <Txt size={12.5} tone="subtle" numberOfLines={1} style={{ marginTop: 3 }}>
+              {[date ? formatEventDate(date) : null, cat].filter(Boolean).join("  ·  ")}
+            </Txt>
+          ) : null}
+          {status ? (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 }}>
+              <View style={{ width: 6, height: 6, borderRadius: 999, backgroundColor: toneColor }} />
+              <Txt size={12} font="sansSemi" style={{ color: toneColor }}>{humanize(status)}</Txt>
+            </View>
+          ) : null}
         </View>
-        {status ? <Badge label={status} tone={statusTone(status)} /> : null}
+
         {onCancel && !cancelled ? (
           <Pressable
             onPress={onCancel}
             disabled={canceling}
             hitSlop={8}
-            style={{ width: 34, height: 34, borderRadius: 999, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: c.border, backgroundColor: c.surface2, opacity: canceling ? 0.5 : 1 }}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel registration"
+            style={({ pressed }) => ({ width: 36, height: 36, borderRadius: 999, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: c.border, backgroundColor: c.surface2, opacity: canceling ? 0.5 : 1, transform: [{ scale: pressed ? 0.92 : 1 }] })}
           >
             <Trash2 size={15} color={c.danger} />
           </Pressable>

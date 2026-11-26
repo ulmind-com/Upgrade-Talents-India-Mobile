@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Pressable, StyleSheet } from "react-native";
 import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { Txt } from "@/components/ui";
 
@@ -71,12 +72,14 @@ export type ExploreItem = {
   onPress: () => void;
 };
 
-/* District "Explore" grid — four modern 3D squircle cards with ambient glow */
+/* District "Explore" row — compact dark cards washed with each icon's own
+   colour, the 3D icon standing up out of the card's top edge, label below. */
+const ICON = 66;
+const LIFT = 26; // how far the icon rises above the card
+
 export function ExploreGrid({ items }: { items: ExploreItem[] }) {
   const tap = (fn: () => void) => {
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch {}
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     fn();
   };
 
@@ -90,41 +93,29 @@ export function ExploreGrid({ items }: { items: ExploreItem[] }) {
           <Pressable
             key={key}
             onPress={() => tap(onPress)}
-            style={({ pressed }) => [
-              styles.card,
-              {
-                transform: [{ scale: pressed ? 0.94 : 1 }],
-              },
-            ]}
+            accessibilityRole="button"
+            accessibilityLabel={label}
+            style={({ pressed }) => [styles.cell, { transform: [{ scale: pressed ? 0.95 : 1 }] }]}
           >
-            {/* Ambient colored spotlight behind the 3D icon */}
-            <View
-              pointerEvents="none"
-              style={[
-                styles.glowSpotlight,
-                {
-                  backgroundColor: glow,
-                },
-              ]}
-            />
-
-            {/* Subtle top glass edge sheen */}
-            <View pointerEvents="none" style={styles.sheenLine} />
-
-            {/* 3D Icon container */}
-            <View style={styles.iconWrapper}>
-              <Icon size={54} />
+            {/* the card: a soft wash of the icon's colour fading into the dark */}
+            <View style={[styles.card, { borderColor: glow + "33" }]}>
+              <LinearGradient
+                colors={[glow + "47", glow + "14", "rgba(16,18,24,0)"]}
+                locations={[0, 0.55, 1]}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+                style={StyleSheet.absoluteFill}
+              />
+              <View pointerEvents="none" style={styles.sheenLine} />
+              <Txt size={13} font="sansBold" style={styles.label} numberOfLines={1}>
+                {label}
+              </Txt>
             </View>
 
-            {/* Category label */}
-            <Txt
-              size={12.5}
-              font="sansBold"
-              style={styles.label}
-              numberOfLines={1}
-            >
-              {label}
-            </Txt>
+            {/* the 3D icon, standing out of the card */}
+            <View pointerEvents="none" style={[styles.icon, { shadowColor: glow }]}>
+              <Icon size={ICON} />
+            </View>
           </Pressable>
         ))}
       </View>
@@ -145,43 +136,41 @@ const styles = StyleSheet.create({
   gridRow: {
     flexDirection: "row",
     gap: 10,
+    paddingTop: LIFT, // room for the icons that rise above the cards
+  },
+  cell: {
+    flex: 1,
+    height: 82,
   },
   card: {
     flex: 1,
-    height: 112,
-    borderRadius: 22,
+    borderRadius: 20,
     overflow: "hidden",
-    backgroundColor: "#11131a",
+    backgroundColor: "#101218",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.08)",
-    paddingTop: 8,
-    paddingBottom: 10,
-    paddingHorizontal: 4,
     alignItems: "center",
-    justifyContent: "space-between",
-  },
-  glowSpotlight: {
-    position: "absolute",
-    top: 6,
-    alignSelf: "center",
-    width: 62,
-    height: 62,
-    borderRadius: 31,
-    opacity: 0.28,
+    justifyContent: "flex-end",
+    paddingBottom: 12,
   },
   sheenLine: {
     position: "absolute",
     top: 0,
-    left: 14,
-    right: 14,
+    left: 16,
+    right: 16,
     height: 1,
-    backgroundColor: "rgba(255, 255, 255, 0.14)",
+    backgroundColor: "rgba(255, 255, 255, 0.16)",
   },
-  iconWrapper: {
-    width: 58,
-    height: 58,
+  icon: {
+    position: "absolute",
+    top: -LIFT,
+    alignSelf: "center",
+    width: ICON,
+    height: ICON,
     alignItems: "center",
     justifyContent: "center",
+    shadowOpacity: 0.55,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
   },
   label: {
     color: "#ffffff",

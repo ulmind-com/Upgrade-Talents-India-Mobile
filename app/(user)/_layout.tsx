@@ -1,11 +1,12 @@
 import React, { useEffect, useRef } from "react";
+import { noteTab } from "@/lib/tabOrigin";
 import { View, Pressable, Dimensions, Animated, Easing } from "react-native";
 import { Tabs, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Defs, RadialGradient, Stop, Ellipse } from "react-native-svg";
 import * as Haptics from "expo-haptics";
-import { Home, CalendarDays, QrCode, LayoutGrid } from "lucide-react-native";
+import { Home, CalendarDays, QrCode, LayoutGrid, Trophy } from "lucide-react-native";
 import { useTheme } from "@/theme/ThemeProvider";
 import { Txt } from "@/components/ui";
 import { LiveProvider, useLive } from "@/context/Live";
@@ -18,9 +19,10 @@ type BottomTabBarProps = {
 
 /* "learn" stays a valid route (reached from the home Academy section) but is
    kept off the dock — it is intentionally absent from TAB_ORDER. */
-const ICONS: Record<string, any> = { index: Home, events: CalendarDays, tickets: QrCode, profile: LayoutGrid };
-const LABELS: Record<string, string> = { index: "Home", events: "Events", tickets: "Tickets", profile: "Menu" };
-const TAB_ORDER = ["index", "events", "tickets", "profile"];
+const ICONS: Record<string, any> = { index: Home, events: CalendarDays, competitions: Trophy, tickets: QrCode, profile: LayoutGrid };
+const LABELS: Record<string, string> = { index: "Home", events: "Events", competitions: "Contests", tickets: "Tickets", profile: "Menu" };
+/* Tickets live under Menu → Orders & Tickets now; "learn" stays off the dock too. */
+const TAB_ORDER = ["index", "competitions", "events", "profile"];
 
 const GLOW_BLUE = "#4f9bff";
 const GLOW_CORE = "#a9ccff";
@@ -111,7 +113,10 @@ function Dock({ state, navigation }: BottomTabBarProps) {
   const { hasLive, firstLiveId } = useLive();
   const liveDot = useBreath(hasLive);
 
-  const routes = (state?.routes || []).filter((r) => TAB_ORDER.includes(r.name));
+  // the dock's order comes from TAB_ORDER, not the order the screens are declared in
+  const routes = (state?.routes || [])
+    .filter((r) => TAB_ORDER.includes(r.name))
+    .sort((a, b) => TAB_ORDER.indexOf(a.name) - TAB_ORDER.indexOf(b.name));
   const currentKey = state?.routes?.[state?.index ?? 0]?.key;
   const idx = Math.max(0, routes.findIndex((r) => r.key === currentKey));
 
@@ -130,6 +135,8 @@ function Dock({ state, navigation }: BottomTabBarProps) {
   const nested = activeTab?.state;
   const nestedRoute = nested?.routes?.[nested.index ?? 0]?.name;
   if (nestedRoute && nestedRoute !== "index") return null;
+  // screens that aren't dock tabs (tickets, learn) open full-screen, like a pushed page
+  if (activeTab && !TAB_ORDER.includes(activeTab.name)) return null;
 
   const openLive = () => {
     playNavFeedback();
@@ -143,7 +150,7 @@ function Dock({ state, navigation }: BottomTabBarProps) {
       {/* floating glass dock */}
       <View
         style={{
-          width: barWidth, height: 64, borderRadius: 30,
+          width: barWidth, height: 72, borderRadius: 34,
           backgroundColor: "rgba(10,10,13,0.97)",
           borderWidth: 1, borderColor: "rgba(255,255,255,0.09)",
           flexDirection: "row", alignItems: "center",
@@ -188,11 +195,11 @@ function Dock({ state, navigation }: BottomTabBarProps) {
               key={route.key || route.name}
               onPress={onPress}
               hitSlop={6}
-              style={({ pressed }) => ({ flex: 1, alignItems: "center", justifyContent: "center", height: 52, opacity: pressed && !focused ? 0.6 : 1 })}
+              style={({ pressed }) => ({ flex: 1, alignItems: "center", justifyContent: "center", height: 60, opacity: pressed && !focused ? 0.6 : 1 })}
             >
-              <View style={{ alignItems: "center", justifyContent: "center", gap: 3.5 }}>
+              <View style={{ alignItems: "center", justifyContent: "center", gap: 4 }}>
                 <View>
-                  <Icon size={focused ? 22 : 20} color={focused ? "#ffffff" : c.fgSubtle} strokeWidth={focused ? 2.5 : 1.9} />
+                  <Icon size={focused ? 25 : 23} color={focused ? "#ffffff" : c.fgSubtle} strokeWidth={focused ? 2.4 : 1.9} />
                   {showLiveDot ? (
                     <Animated.View
                       style={{
@@ -204,7 +211,7 @@ function Dock({ state, navigation }: BottomTabBarProps) {
                     />
                   ) : null}
                 </View>
-                <Txt size={focused ? 10.5 : 9.5} font={focused ? "sansBold" : "sansMed"} style={{ color: focused ? "#ffffff" : c.fgSubtle }}>
+                <Txt size={focused ? 11.5 : 10.5} font={focused ? "sansBold" : "sansMed"} style={{ color: focused ? "#ffffff" : c.fgSubtle }}>
                   {label}
                 </Txt>
               </View>
@@ -221,10 +228,14 @@ export default function UserLayout() {
     <LiveProvider>
       <Tabs
         tabBar={(props: any) => <Dock {...props} />}
+        backBehavior="history"
         screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: "transparent" } }}
+        screenListeners={({ route }: any) => ({ focus: () => noteTab(route.name) })}
       >
         <Tabs.Screen name="index" />
-        <Tabs.Screen name="events" />
+        <Tabs.Screen name="competitions" />
+        {/* leaving Events clears its stack, so an event opened earlier can't resurface on "back" */}
+        <Tabs.Screen name="events" options={{ popToTopOnBlur: true } as any} />
         <Tabs.Screen name="learn" />
         <Tabs.Screen name="tickets" />
         <Tabs.Screen name="profile" />

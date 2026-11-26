@@ -1,4 +1,4 @@
-import { ticketWay } from "@/components/TicketPass";
+import { tierWay } from "@/components/TicketPass";
 import type { MyTicket } from "@/lib/api";
 
 /** The five states a booking can be in, collapsed from the API's two fields. */
@@ -53,12 +53,21 @@ export function isCancellable(b: BookingRow): boolean {
  * and the pass it opens are recognisably the same object.
  */
 export function bookingWay(b: BookingRow, tickets: MyTicket[] = []) {
-  return ticketWay(tickets[0]?.ticket_ref || bookingId(b) || "x");
+  return tierWay(tickets[0]?.ticket_type || (b as any)?.category || (b as any)?.ticket_type, tickets[0]?.ticket_ref || bookingId(b) || "x");
 }
 
 /** The tickets issued against one booking. */
-export function ticketsOf(id: string, all: MyTicket[] = []): MyTicket[] {
-  return all.filter((t) => String(t.booking_id) === String(id));
+export function ticketsOf(id: string, all: MyTicket[] = [], bookingRef?: string): MyTicket[] {
+  const targetId = String(id || "");
+  const targetRef = String(bookingRef || "");
+  return all.filter((t) => {
+    const bId = String(t.booking_id || "");
+    const bRef = String(t.booking_ref || "");
+    return (
+      (targetId && (bId === targetId || bRef === targetId)) ||
+      (targetRef && (bId === targetRef || bRef === targetRef))
+    );
+  });
 }
 
 /** Pull whatever the booking row knows about the event, tickets filling gaps. */

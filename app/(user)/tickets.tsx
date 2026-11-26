@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import { View, Pressable } from "react-native";
 import { useRouter } from "expo-router";
-import { QrCode, Ticket as TicketIcon, LogIn, History, CalendarX, ChevronRight, ShieldCheck } from "lucide-react-native";
+import { QrCode, Ticket as TicketIcon, LogIn, History, CalendarX, ChevronRight, ShieldCheck, ArrowLeft } from "lucide-react-native";
 import { Screen } from "@/components/Screen";
 import { useTheme } from "@/theme/ThemeProvider";
 import { useSession } from "@/context/Session";
@@ -39,7 +39,10 @@ export default function Tickets() {
           title: ev?.title ?? t.event_title,
           date,
           venue: ev?.venue ?? t.event_venue,
-          price: ev?.price ?? t.price ?? t.base_price,
+          // what this pass cost — never the event's list price
+          price: paidFor(t),
+          // the event's own artwork (the same one the PDF prints)
+          cover: t.event_cover || ev?.card_image_url || ev?.image_url,
           expired: isEventExpired(date, ev?.time ?? t.event_time),
         };
       }),
@@ -48,7 +51,7 @@ export default function Tickets() {
   const live = dressed.filter((d) => !d.expired);
   const past = dressed.filter((d) => d.expired);
 
-  const openTicket = (t: MyTicket) =>
+  const openTicket = (t: MyTicket, d?: any) =>
     router.push({
       pathname: "/(more)/ticket/[ref]",
       params: {
@@ -58,6 +61,12 @@ export default function Tickets() {
         issued: t.issued_at,
         checked: t.is_checked_in ? "1" : "0",
         event_id: t.event_id,
+        event_title: d?.title ?? t.event_title,
+        event_date: d?.date ?? t.event_date,
+        event_time: t.event_time,
+        event_venue: d?.venue ?? t.event_venue,
+        event_cover: t.event_cover,
+        price: paidFor(t) == null ? "" : String(paidFor(t)),
       },
     });
 
@@ -65,6 +74,7 @@ export default function Tickets() {
     return (
       <Screen>
         <View style={{ paddingTop: 8, paddingBottom: 16 }}>
+          <BackBtn onPress={() => (router.canGoBack() ? router.back() : router.replace("/(user)/profile"))} />
           <Txt size={22} font="sansBold" style={{ color: "#ffffff", letterSpacing: -0.4 }}>
             My Passes
           </Txt>
@@ -89,6 +99,7 @@ export default function Tickets() {
     <Screen refreshing={refreshing} onRefresh={refresh}>
       {/* District Header */}
       <View style={{ paddingTop: 8, paddingBottom: 16 }}>
+        <BackBtn onPress={() => (router.canGoBack() ? router.back() : router.replace("/(user)/profile"))} />
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
           <Txt size={22} font="sansBold" style={{ color: "#ffffff", letterSpacing: -0.4 }}>
             My Passes
@@ -168,9 +179,10 @@ export default function Tickets() {
                 ticket={d.t}
                 eventTitle={d.title}
                 eventDate={d.date}
+                      cover={d.cover}
                 venue={d.venue}
                 price={d.price}
-                onPress={() => openTicket(d.t)}
+                onPress={() => openTicket(d.t, d)}
               />
             </FadeInUp>
           ))}
@@ -200,9 +212,10 @@ export default function Tickets() {
                       ticket={d.t}
                       eventTitle={d.title}
                       eventDate={d.date}
+                      cover={d.cover}
                       venue={d.venue}
                       price={d.price}
-                      onPress={() => openTicket(d.t)}
+                      onPress={() => openTicket(d.t, d)}
                     />
                   </FadeInUp>
                 ))}
@@ -218,5 +231,37 @@ export default function Tickets() {
         />
       )}
     </Screen>
+  );
+}
+
+/** Amount paid for a pass, from the booking (null when the server didn't say). */
+function paidFor(t: MyTicket): number | null {
+  const v = t.total_amount ?? t.price;
+  return v == null || isNaN(Number(v)) ? null : Number(v);
+}
+
+/** Tickets open from Menu now (not the dock), so they get a way back. */
+function BackBtn({ onPress }: { onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      hitSlop={10}
+      accessibilityRole="button"
+      accessibilityLabel="Back"
+      style={({ pressed }) => ({
+        width: 42,
+        height: 42,
+        borderRadius: 999,
+        alignItems: "center",
+        justifyContent: "center",
+        marginBottom: 16,
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.12)",
+        backgroundColor: "rgba(20,22,30,0.9)",
+        transform: [{ scale: pressed ? 0.94 : 1 }],
+      })}
+    >
+      <ArrowLeft size={20} color="#fff" />
+    </Pressable>
   );
 }

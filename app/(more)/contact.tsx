@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { View, Linking, Pressable, TextInput } from "react-native";
-import { Mail, Phone, MapPin, Instagram, Facebook, Youtube, Twitter, Linkedin, ExternalLink, ChevronRight, Send } from "lucide-react-native";
+import { Mail, Phone, MapPin, ChevronRight, Send, ShieldCheck, FileText } from "lucide-react-native";
+import * as WebBrowser from "expo-web-browser";
 import * as Haptics from "expo-haptics";
 import { SubScreen } from "@/components/SubScreen";
 import { useTheme } from "@/theme/ThemeProvider";
@@ -9,17 +10,17 @@ import { useAsync } from "@/lib/useAsync";
 import { Txt, Card, Divider, Skeleton, Button, Field, Input } from "@/components/ui";
 import { useAlert } from "@/components/Popup";
 import { useSession } from "@/context/Session";
+import { InstagramCard } from "@/components/InstagramCard";
 
 export default function Contact() {
   const { c } = useTheme();
   const alert = useAlert();
   const { user } = useSession();
   const { data, loading, refreshing, refresh } = useAsync(
-    () => Promise.all([safe(publicApi.contactInfo(), {} as any), safe(publicApi.importantLinks(), [] as any[])]),
+    () => safe(publicApi.contactInfo(), {} as any),
     []
   );
-  const [contact, links] = data || [{}, []];
-  const social = contact?.social_media || {};
+  const contact = data || {};
   const open = (url?: string) => url && Linking.openURL(url).catch(() => {});
 
   const [name, setName] = useState(user?.name || "");
@@ -44,14 +45,6 @@ export default function Contact() {
     alert("success", "Email draft ready", "Your email app is open with the prefilled message.");
   };
 
-  const socials = [
-    { k: "instagram", Icon: Instagram, url: social.instagram },
-    { k: "facebook", Icon: Facebook, url: social.facebook },
-    { k: "youtube", Icon: Youtube, url: social.youtube },
-    { k: "twitter", Icon: Twitter, url: social.twitter },
-    { k: "linkedin", Icon: Linkedin, url: social.linkedin },
-  ].filter((s) => s.url);
-
   return (
     <SubScreen eyebrow="We're here" title="Contact us" refreshing={refreshing} onRefresh={refresh}>
       {loading ? (
@@ -67,18 +60,8 @@ export default function Contact() {
             ) : null}
           </Card>
 
-          {socials.length ? (
-            <View>
-              <Txt size={13} font="monoMed" tone="subtle" tracking={2} uppercase style={{ marginBottom: 10 }}>Follow us</Txt>
-              <View style={{ flexDirection: "row", gap: 12 }}>
-                {socials.map((s) => (
-                  <Pressable key={s.k} onPress={() => open(s.url)} style={{ width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: c.surface, borderWidth: 1, borderColor: c.border }}>
-                    <s.Icon size={21} color={c.fg} />
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-          ) : null}
+          {/* Instagram 3D Community Card (District Style) */}
+          <InstagramCard />
 
           {/* Send a message form */}
           <Card style={{ padding: 18, gap: 14 }}>
@@ -133,28 +116,39 @@ export default function Contact() {
             />
           </Card>
 
-          {links?.length ? (
-            <View>
-              <Txt size={13} font="monoMed" tone="subtle" tracking={2} uppercase style={{ marginBottom: 10 }}>Important links</Txt>
-              <Card padding={0}>
-                {links.map((l: any, i: number) => (
-                  <View key={l._id || i}>
-                    <Pressable onPress={() => open(l.url)} style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 15 }}>
-                      <ExternalLink size={17} color={c.fgMuted} />
-                      <Txt size={14.5} font="sansMed" style={{ flex: 1 }} numberOfLines={1}>{l.title || l.label || l.url}</Txt>
-                      <ChevronRight size={17} color={c.fgSubtle} />
-                    </Pressable>
-                    {i < links.length - 1 ? <Divider style={{ marginLeft: 44 }} /> : null}
-                  </View>
-                ))}
-              </Card>
-            </View>
-          ) : null}
+          {/* Legal — opens in an in-app browser sheet */}
+          <View>
+            <Txt size={13} font="monoMed" tone="subtle" tracking={2} uppercase style={{ marginBottom: 10 }}>Legal</Txt>
+            <Card padding={0}>
+              {LEGAL.map((l, i) => (
+                <View key={l.url}>
+                  <Pressable
+                    onPress={() => {
+                      Haptics.selectionAsync().catch(() => {});
+                      WebBrowser.openBrowserAsync(l.url, { toolbarColor: "#08090C", controlsColor: "#FF385C" }).catch(() => { open(l.url); });
+                    }}
+                    accessibilityRole="link"
+                    style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, padding: 15, opacity: pressed ? 0.7 : 1 })}
+                  >
+                    {l.icon === "privacy" ? <ShieldCheck size={17} color={c.fgMuted} /> : <FileText size={17} color={c.fgMuted} />}
+                    <Txt size={14.5} font="sansMed" style={{ flex: 1 }}>{l.title}</Txt>
+                    <ChevronRight size={17} color={c.fgSubtle} />
+                  </Pressable>
+                  {i < LEGAL.length - 1 ? <Divider style={{ marginLeft: 44 }} /> : null}
+                </View>
+              ))}
+            </Card>
+          </View>
         </View>
       )}
     </SubScreen>
   );
 }
+
+const LEGAL = [
+  { title: "Privacy Policy", url: "https://www.upgradetalentsindia.in/privacy-policy", icon: "privacy" },
+  { title: "Terms & Conditions", url: "https://upgrade-talents-india-frontend.vercel.app/terms-and-conditions", icon: "terms" },
+] as const;
 
 function ContactRow({ icon, label, value, onPress }: { icon: React.ReactNode; label: string; value: string; onPress?: () => void }) {
   const { c } = useTheme();

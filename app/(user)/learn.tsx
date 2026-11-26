@@ -4,7 +4,8 @@ import { View, Pressable } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { GraduationCap, Sparkles, BookOpen, Zap } from "lucide-react-native";
-import { Screen } from "@/components/Screen";
+import { SubScreen } from "@/components/SubScreen";
+import { PromoHeroBanner } from "@/components/PromoHeroBanner";
 import { publicApi, profileApi, safe } from "@/lib/api";
 import { useSession } from "@/context/Session";
 import { useTheme } from "@/theme/ThemeProvider";
@@ -12,7 +13,6 @@ import { useAsync } from "@/lib/useAsync";
 import { CourseCard } from "@/components/domain";
 import { Txt, Skeleton, EmptyState, ErrorState, SearchField } from "@/components/ui";
 import { FadeInUp } from "@/components/FadeInUp";
-import { DottedGrid } from "@/components/patterns";
 
 export default function Learn() {
   const router = useRouter();
@@ -51,23 +51,21 @@ export default function Learn() {
   }, [active.data, q]);
 
   return (
-    <Screen refreshing={active.refreshing} onRefresh={active.refresh}>
-      {/* Hero — District Gen-Z */}
+    <SubScreen
+      eyebrow="Upgrade yourself"
+      title="Academy"
+      refreshing={active.refreshing}
+      onRefresh={active.refresh}
+    >
+      {/* 3D Character Promo Banner — Zomato District Style */}
       <FadeInUp>
-        <View style={{ borderRadius: 24, overflow: "hidden", marginBottom: 18, marginTop: 4 }}>
-          <LinearGradient colors={["#7C3AED", "#FF385C", "#08090C"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 20 }}>
-            <DottedGrid color="rgba(255,255,255,0.22)" opacity={0.5} gap={18} />
-            <Txt size={70} font="display" style={{ position: "absolute", top: -4, right: -4, color: "rgba(255,255,255,0.14)", letterSpacing: -3 }}>LEARN</Txt>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
-              <Sparkles size={14} color="#C9F24A" />
-              <Txt size={10.5} font="monoMed" tracking={2.5} uppercase style={{ color: "#C9F24A" }}>Upgrade yourself</Txt>
-            </View>
-            <Txt size={25} font="display" tracking={-0.5} lh={28} style={{ color: "#fff", marginTop: 12 }}>Academy &{"\n"}workshops.</Txt>
-            <Txt size={13} lh={19} style={{ color: "rgba(255,255,255,0.9)", marginTop: 8, maxWidth: 250 }}>
-              Masterclasses from world-class choreographers.
-            </Txt>
-          </LinearGradient>
-        </View>
+        <PromoHeroBanner
+          tag="Upgrade Academy"
+          title="Learn from the Masters"
+          subtitle="World-class choreography & training workshops"
+          characterSource={require("../../assets/banners/3d_academy_char.png")}
+          glowColor="rgba(0, 245, 212, 0.16)"
+        />
       </FadeInUp>
 
       {/* Search */}
@@ -120,6 +118,6 @@ export default function Learn() {
       ) : (
         <EmptyState icon={<GraduationCap size={28} color={c.fgMuted} />} title={`No ${tab} available right now`} subtitle="New masterclasses and programmes are added every season." />
       )}
-    </Screen>
+    </SubScreen>
   );
 }

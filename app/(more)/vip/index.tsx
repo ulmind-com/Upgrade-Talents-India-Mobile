@@ -11,6 +11,8 @@ import { useAsync } from "@/lib/useAsync";
 import { formatEventDate } from "@/lib/format";
 import { VipCard, Chip } from "@/components/vip/VipCard";
 import { VipBookSheet } from "@/components/vip/VipBookSheet";
+import { FadeInUp } from "@/components/FadeInUp";
+import { PromoHeroBanner } from "@/components/PromoHeroBanner";
 import { bookingTone, money, passTone, useVipCheckout, VIP_GOLD, MUTED, WARN, type VipResult } from "@/lib/vip";
 
 type Tab = "browse" | "passes" | "bookings";
@@ -78,19 +80,16 @@ export default function VipHub() {
 
   return (
     <SubScreen eyebrow="Backstage access" title="VIP passes" refreshing={browse.refreshing} onRefresh={refresh}>
-      {/* hero */}
-      <View style={s.hero}>
-        <LinearGradient colors={["rgba(245,197,66,0.18)", "rgba(249,134,43,0.06)", "rgba(17,19,26,0)"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
-        <View style={s.heroIcon}>
-          <Crown size={20} color={VIP_GOLD} />
-        </View>
-        <Txt size={22} font="display" tracking={-0.4} lh={26} style={{ color: "#fff", marginTop: 12 }}>
-          Skip the queue.{"\n"}Own the night.
-        </Txt>
-        <Txt size={12.5} lh={18} style={{ color: MUTED, marginTop: 6 }}>
-          Lounge access, backstage entry and the best views — one QR at the gate.
-        </Txt>
-      </View>
+      {/* 3D VIP Character Promo Banner — Zomato District Style */}
+      <FadeInUp>
+        <PromoHeroBanner
+          tag="Backstage VIP Access"
+          title="Skip The Queue. Own The Night."
+          subtitle="Exclusive lounge access, backstage entry & VIP gate pass"
+          characterSource={require("../../../assets/banners/3d_vip_char.png")}
+          glowColor="rgba(245, 197, 66, 0.18)"
+        />
+      </FadeInUp>
 
       {/* tabs */}
       <View style={s.track}>

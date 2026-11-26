@@ -45,7 +45,7 @@ import { useAsync } from "@/lib/useAsync";
 import { Txt, Card, Button, Divider } from "@/components/ui";
 import { FadeInUp } from "@/components/FadeInUp";
 import { Avatar } from "@/components/Avatar";
-import { VerifiedTick } from "@/components/VerifiedBadge";
+import { VerifiedTick, VerifiedName } from "@/components/VerifiedBadge";
 import { CopyCode } from "@/components/CopyCode";
 import { isEventExpired, formatEventDate } from "@/lib/format";
 import { LiveStageLineupModal } from "@/components/LiveStageLineupModal";
@@ -100,7 +100,8 @@ export default function Profile() {
       await Share.share({
         title: "Upgrade Talents India",
         message:
-          "🌟 Hey! Check out Upgrade Talents India — The premier platform for live talent competitions, stage auditions, VIP event passes, and national rankings!\n\n📲 Download on Google Play:\nhttps://play.google.com/store/apps/details?id=com.upgradetalents.app\n\n🌐 Visit Website: https://upgradetalents.com",
+          "🌟 Download Upgrade Talents India — Discover live concerts, enter national talent auditions & get instant digital QR entry passes!\n\n📲 Get it on Google Play Store:\nhttps://play.google.com/store/apps/details?id=in.upgradetalents.app",
+        url: "https://play.google.com/store/apps/details?id=in.upgradetalents.app",
       });
     } catch (err) {
       console.warn("Share failed:", err);
@@ -149,54 +150,83 @@ export default function Profile() {
               style={{ position: "absolute", top: 0, left: 0, right: 0, height: 160 }}
             />
 
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            {/* Clickable Header Identity: Logged-in Profile */}
+            <Pressable
+              onPress={() => nav("/(more)/profile")}
+              style={({ pressed }) => ({
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+                opacity: pressed ? 0.92 : 1,
+              })}
+            >
               <View style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 13 }}>
                 <Avatar
                   name={user?.name}
                   photo={user?.profile_photo}
-                  size={60}
+                  size={62}
                   fontSize={22}
                   border={{ width: 2, color: "#FF385C" }}
                   style={{ backgroundColor: "#1f2230" }}
                 />
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                    <Txt size={18} font="sansBold" style={{ color: "#ffffff" }} numberOfLines={1}>
-                      {user?.name || "Dancer"}
-                    </Txt>
-                    <VerifiedTick row={user} size={15} />
-                  </View>
+                  <VerifiedName name={user?.name || "Dancer"} row={user} size={18} lh={23} numberOfLines={2} style={{ color: "#ffffff" }} />
                   <Txt size={12} style={{ color: "#9ea3b8", marginTop: 2 }} numberOfLines={1}>
                     {user?.email}
                   </Txt>
                   <View
                     style={{
-                      alignSelf: "flex-start",
                       flexDirection: "row",
                       alignItems: "center",
-                      gap: 4,
-                      backgroundColor: "rgba(201, 242, 74, 0.12)",
-                      borderWidth: 1,
-                      borderColor: "rgba(201, 242, 74, 0.25)",
-                      paddingHorizontal: 8,
-                      paddingVertical: 2.5,
-                      borderRadius: 999,
+                      gap: 6,
                       marginTop: 6,
+                      flexWrap: "wrap",
                     }}
                   >
-                    <BadgeCheck size={11} color="#C9F24A" />
-                    <Txt size={9.5} font="sansBold" style={{ color: "#C9F24A" }}>
-                      {user?.is_verified ? "VERIFIED MEMBER" : "MEMBER"}
-                    </Txt>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 4,
+                        backgroundColor: "rgba(201, 242, 74, 0.12)",
+                        borderWidth: 1,
+                        borderColor: "rgba(201, 242, 74, 0.25)",
+                        paddingHorizontal: 8,
+                        paddingVertical: 2.5,
+                        borderRadius: 999,
+                      }}
+                    >
+                      <BadgeCheck size={11} color="#C9F24A" />
+                      <Txt size={9.5} font="sansBold" style={{ color: "#C9F24A" }}>
+                        {user?.is_verified ? "VERIFIED MEMBER" : "MEMBER"}
+                      </Txt>
+                    </View>
+
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 3,
+                        backgroundColor: "rgba(255, 56, 92, 0.12)",
+                        borderWidth: 1,
+                        borderColor: "rgba(255, 56, 92, 0.28)",
+                        paddingHorizontal: 8,
+                        paddingVertical: 2.5,
+                        borderRadius: 999,
+                      }}
+                    >
+                      <Txt size={9.5} font="sansBold" style={{ color: "#FF385C" }}>
+                        View Profile →
+                      </Txt>
+                    </View>
                   </View>
                 </View>
               </View>
 
-              {/* Edit profile icon safely inside card */}
-              <Pressable
-                onPress={() => nav("/(more)/profile-edit")}
-                hitSlop={8}
-                style={({ pressed }) => ({
+              {/* View profile chevron button */}
+              <View
+                style={{
                   width: 38,
                   height: 38,
                   borderRadius: 19,
@@ -205,12 +235,11 @@ export default function Profile() {
                   borderColor: "rgba(255, 255, 255, 0.14)",
                   alignItems: "center",
                   justifyContent: "center",
-                  transform: [{ scale: pressed ? 0.94 : 1 }],
-                })}
+                }}
               >
-                <UserCog size={18} color="#ffffff" />
-              </Pressable>
-            </View>
+                <ChevronRight size={18} color="#ffffff" />
+              </View>
+            </Pressable>
 
             {/* Stat Chips Row */}
             <View style={{ flexDirection: "row", gap: 10, marginTop: 18 }}>
@@ -465,6 +494,7 @@ export default function Profile() {
             Orders & Tickets
           </Txt>
           <View style={cardContainerStyle}>
+            <MenuRow Icon={QrCode} label="My tickets & passes" onPress={() => navWithAuth("/(user)/tickets")} />
             <MenuRow Icon={CalendarClock} label="My events" onPress={() => navWithAuth("/(more)/my-activity?tab=events")} />
             <MenuRow Icon={Receipt} label="My bookings" onPress={() => navWithAuth("/(more)/bookings")} />
             <MenuRow Icon={Package} label="My merchandise orders" onPress={() => navWithAuth("/(more)/shop/orders")} />
@@ -481,6 +511,7 @@ export default function Profile() {
             Talent & Compete
           </Txt>
           <View style={cardContainerStyle}>
+            <MenuRow Icon={UserCog} label="My profile" onPress={() => navWithAuth("/(more)/profile")} />
             <MenuRow Icon={Trophy} label="Competitions hub" onPress={() => nav("/(more)/competitions")} />
             <MenuRow Icon={Flame} label="My competitions" onPress={() => navWithAuth("/(more)/my-activity?tab=competitions")} />
             <MenuRow Icon={BarChart3} label="Live leaderboard" onPress={() => nav("/(more)/leaderboard")} />
@@ -516,8 +547,7 @@ export default function Profile() {
             <MenuRow Icon={Gavel} label="Judge panel" onPress={() => nav("/(more)/judge")} />
             <MenuRow Icon={HandHeart} label="Volunteer gate scanner" onPress={() => nav("/(more)/volunteer")} />
             <MenuRow Icon={Info} label="About Upgrade Talents" onPress={() => nav("/(more)/about")} />
-            <MenuRow Icon={Phone} label="Contact support" onPress={() => nav("/(more)/contact")} />
-            <MenuRow Icon={Settings} label="App preferences" onPress={() => nav("/(more)/settings")} last />
+            <MenuRow Icon={Phone} label="Contact support" onPress={() => nav("/(more)/contact")} last />
           </View>
         </View>
       </FadeInUp>

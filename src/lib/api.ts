@@ -326,6 +326,7 @@ export type TicketTier = {
   _id: string;
   event_id: string;
   type: string;
+  category?: string;
   price: number;
   total_quantity: number;
   available: number;
@@ -388,6 +389,8 @@ export type HomepagePayload = {
 export type MyTicket = {
   ticket_ref: string;
   booking_id: string;
+  booking_ref?: string;
+  booking_reference?: string;
   event_id: string;
   ticket_type: string;
   holder_name: string;
@@ -402,8 +405,15 @@ export type MyTicket = {
   event_time?: string;
   event_venue?: string;
   event_cover?: string;
+  /** What was paid for this pass: the whole booking when it admits several people. */
   price?: number;
   base_price?: number;
+  total_amount?: number;
+  unit_price?: number;
+  quantity?: number;
+  /** Every person this one QR admits, in seat order. */
+  holder_names?: string[];
+  seats?: string[];
   qr_token?: string;
 };
 
@@ -1077,6 +1087,27 @@ export const activitiesApi = {
     apiFetch<TicketTier[]>("/api/activities/tickets", {
       query: { event_id, limit: p.limit ?? 20, skip: p.skip ?? 0 },
     }),
+  /** One event, fresh (categories with price / capacity drive the seat map). */
+  eventById: (id: string) => apiFetch<any>(`/api/activities/events/${encodeURIComponent(id)}`),
+  /** Seats that are booked, pending or held by someone else (`hold_token` excludes your own holds). */
+  bookedSeats: (id: string, hold_token?: string) =>
+    apiFetch<{ event_id: string; booked_seats: string[]; count: number }>(`/api/activities/events/${encodeURIComponent(id)}/booked-seats`, {
+      query: hold_token ? { hold_token } : undefined,
+    }),
+  /** Reserve seats for 5 minutes while the buyer checks out (replaces this token's previous hold). */
+  holdSeats: (id: string, body: { seats: string[]; hold_token: string; user_email?: string }) =>
+    apiFetch<{ success: boolean; hold_token: string; held_seats: string[]; expires_in: number; expires_at: string }>(
+      `/api/activities/events/${encodeURIComponent(id)}/hold-seats`,
+      { method: "POST", body }
+    ),
+  releaseSeats: (id: string, body: { hold_token: string; seats?: string[] }) =>
+    apiFetch<{ success: boolean; released_count: number }>(`/api/activities/events/${encodeURIComponent(id)}/release-seats`, { method: "POST", body }),
+  /** Social proof: confirmed bookers count + the latest few (first name + photo only). */
+  bookedBy: (id: string, limit = 3) =>
+    apiFetch<{ event_id: string; count: number; people: { first_name: string; avatar_url?: string | null }[] }>(
+      `/api/activities/events/${encodeURIComponent(id)}/booked-by`,
+      { query: { limit } }
+    ),
   competitions: (p: { skip?: number; limit?: number; search?: string; category?: string } = {}) =>
     apiFetch<any[]>("/api/activities/competitions", { query: p }),
   merchandise: (p: { skip?: number; limit?: number; search?: string } = {}) =>
@@ -1099,7 +1130,13 @@ export const authApi = {
       body: { email, password },
     }),
   googleLogin: (id_token: string, referral_code?: string) =>
-    apiFetch<{ access_token: string; token_type: string }>("/api/auth/google-login", {
+    apiFetch<{
+      access_token: string;
+      token_type: string;
+      is_new_user?: boolean;
+      requires_profile_completion?: boolean;
+      prompt_profile_form?: boolean;
+    }>("/api/auth/google-login", {
       method: "POST",
       body: { id_token, referral_code },
     }),
@@ -1178,8 +1215,16 @@ export const profileApi = {
 };
 
 export const bookingsApi = {
-  create: (body: { event_id: string; ticket_id: string; quantity: number; holder_names?: string[] }) =>
-    apiFetch<any>("/api/bookings/", { method: "POST", body, auth: "user" }),
+  create: (body: {
+    event_id: string;
+    ticket_id?: string;
+    category?: string;
+    quantity: number;
+    holder_names?: string[];
+    /** Seat ids from the seat map, e.g. "A-01". */
+    seats?: string[];
+    payment_method?: "ONLINE" | "CASH";
+  }) => apiFetch<any>("/api/bookings/", { method: "POST", body, auth: "user" }),
   my: () => apiFetch<any[]>("/api/bookings/my", { auth: "user" }),
   cancel: (booking_id: string) => apiFetch<any>(`/api/bookings/${booking_id}/cancel`, { method: "POST", auth: "user" }),
   myTickets: () => apiFetch<MyTicket[]>("/api/bookings/my-tickets", { auth: "user" }),
@@ -1187,6 +1232,9 @@ export const bookingsApi = {
   /** Re-send (or send) the admission pass + QR to the attendee's email inbox. */
   sendTicketEmail: (ticket_ref: string) =>
     apiFetch<any>(`/api/bookings/tickets/${encodeURIComponent(ticket_ref)}/send-email`, { method: "POST", auth: "user" }),
+  /** Signed "Add to Google Wallet" link for one of the caller's tickets (503 until the server has Wallet set up). */
+  googleWallet: (ticket_ref: string) =>
+    apiFetch<{ save_url: string }>(`/api/bookings/tickets/${encodeURIComponent(ticket_ref)}/google-wallet`, { auth: "user" }),
 };
 
 /* ─────────────── RAZORPAY WEBHOOK (health only) ───────────────
@@ -1249,6 +1297,13 @@ export const registrationsApi = {
 };
 
 export const extrasApi = {
+  /** Register this phone's FCM token so the backend can push to it (upserts). */
+  registerDevice: (body: { provider_token: string; platform: "ANDROID" | "IOS" | "WEB"; app_identifier?: string; device_label?: string }) =>
+    apiFetch<{ id: string; platform: string; is_active: boolean }>("/api/notifications/devices", { method: "POST", auth: "user", body }),
+  devices: () => apiFetch<{ devices: any[]; total: number }>("/api/notifications/devices", { auth: "user" }),
+  /** Deactivate this phone's token (on logout). */
+  unregisterDevice: (deviceId: string) =>
+    apiFetch<any>(`/api/notifications/devices/${encodeURIComponent(deviceId)}`, { method: "DELETE", auth: "user" }),
   notifications: () => apiFetch<any>("/api/notifications/", { auth: "user" }),
   notificationList: (p: { is_read?: boolean; notification_type?: string; page?: number; page_size?: number } = {}) =>
     apiFetch<any>("/api/notifications/", { auth: "user", query: { page: 1, page_size: 30, ...p } }),

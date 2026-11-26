@@ -1,4 +1,7 @@
 import React, { useRef, useState } from "react";
+import { useLive } from "@/context/Live";
+import { FestiveStrip } from "@/components/FestiveLottie";
+import { compImage } from "@/lib/competition";
 import { View, Pressable, ScrollView, RefreshControl, Animated, Linking } from "react-native";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -99,6 +102,19 @@ export default function Home() {
      for when the admin has published art but no live competition yet. */
   const compQ = useAsync(() => safe(publicApi.upcomingCompetitions({ limit: 10 }), [] as any[]), []);
 
+  /* Pull-to-refresh reloads every section on the screen, not just the
+     homepage payload: competitions spotlight, unread count, the live dock
+     and the "live now" bar all come back fresh together. */
+  const live = useLive();
+  const [liveKey, setLiveKey] = useState(0);
+  const [pulling, setPulling] = useState(false);
+  const refreshAll = async () => {
+    setPulling(true);
+    setLiveKey((k) => k + 1);
+    await Promise.all([refresh(), compQ.refresh(), unread.refresh(), live.refresh()]).catch(() => {});
+    setPulling(false);
+  };
+
   /* Homepage lists carry is_published / is_visible / display_order — honour
      all three, or the app shows rows the admin hid and in the wrong order. */
   const liveEvents = React.useMemo(() => publishedInOrder(hp.live_events), [hp.live_events]);
@@ -136,13 +152,12 @@ export default function Home() {
         return {
           id,
           title: x.title || x.name || "Competition",
-          image: x.image_url || x.banner_url || x.thumbnail || null,
+          image: compImage(x) || x.thumbnail || null,
           sub: closes
             ? `Entries close ${formatEventDate(closes)}`
             : x.start_date
               ? formatEventDate(x.start_date)
               : undefined,
-          hype: countLabel(x.participant_count ?? x.registered_count ?? x.total_participants, "joined"),
           onPress: () => router.push(`/(more)/competitions/${id}`),
         };
       });
@@ -262,7 +277,7 @@ export default function Home() {
         contentContainerStyle={{ paddingBottom: 130 }}
         scrollEventThrottle={16}
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor="#ff385c" colors={["#ff385c"]} />}
+        refreshControl={<RefreshControl refreshing={refreshing || pulling} onRefresh={refreshAll} tintColor="#ff385c" colors={["#ff385c"]} />}
       >
           {/* Header — who you are on the left, what needs you on the right. */}
           <View
@@ -388,6 +403,10 @@ export default function Home() {
         </Pressable>
         </View>
 
+        {/* Festive strip — trying Republic Day first; will switch by date (26 Jan / 15 Aug) */}
+        {/* Festive strip — Republic Day around 26 Jan, Independence Day around 15 Aug */}
+        <FestiveStrip />
+
         {/* Explore — four glossy doors */}
         <ExploreGrid items={exploreItems} />
 
@@ -405,7 +424,7 @@ export default function Home() {
 
         {/* Live now — urgent, so it sits high, but in the same clean grammar */}
         {/* door into the Live hub — counts straight from /live/summary */}
-        <LiveNowBar style={{ marginTop: SECTION_GAP }} onPress={() => router.push("/(more)/live")} />
+        <LiveNowBar refreshKey={liveKey} style={{ marginTop: SECTION_GAP }} onPress={() => router.push("/(more)/live")} />
         {liveEvents.length ? <LiveNow events={liveEvents} onOpen={openLive} /> : null}
 
         {/* Competitions */}

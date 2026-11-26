@@ -12,6 +12,14 @@ import { CartProvider } from "@/context/Cart";
 import { Splash, SPLASH_MS } from "@/components/Splash";
 import { PopupProvider } from "@/components/Popup";
 import { OnboardingGate } from "@/components/OnboardingGate";
+import { usePushSetup } from "@/lib/push";
+
+/** Push registration + notification taps, for the signed-in member. */
+function PushBridge() {
+  const { user } = useSession();
+  usePushSetup(!!user);
+  return null;
+}
 
 function Boot({ children }: { children: React.ReactNode }) {
   const { ready } = useSession();
@@ -41,6 +49,7 @@ function Boot({ children }: { children: React.ReactNode }) {
 
   return (
     <View style={{ flex: 1 }}>
+      <PushBridge />
       {show ? children : null}
       {!gone ? <Splash visible={!(show && settled)} onHidden={() => setGone(true)} fontReady={fontsDone} /> : null}
     </View>

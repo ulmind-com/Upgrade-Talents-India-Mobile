@@ -14,7 +14,7 @@ import {
 } from "@/lib/api";
 import { Txt } from "@/components/ui";
 import { Avatar } from "@/components/Avatar";
-import { VerifiedTick } from "@/components/VerifiedBadge";
+import { VerifiedTick, isVerified, InlineTick } from "@/components/VerifiedBadge";
 import { Pulse } from "@/components/motion";
 import { LiveStageLineupModal } from "@/components/LiveStageLineupModal";
 import { useRealtime } from "@/lib/realtime";
@@ -325,8 +325,9 @@ function Spotlight({ performer, onFor }: { performer: StagePerformer; onFor: str
       <View style={[s.nameLine, { marginTop: 4, maxWidth: 280 }]}>
         <Txt size={20} font="display" tracking={-0.4} numberOfLines={2} align="center" style={{ color: "#fff", flexShrink: 1 }}>
           {performerName(performer)}
+          {isVerified(performer) ? "\u00A0" : ""}
+          {isVerified(performer) ? <InlineTick fontSize={20} size={16} /> : null}
         </Txt>
-        <VerifiedTick row={performer} size={16} />
       </View>
       {performer.entry_title ? (
         <Txt size={13} numberOfLines={2} align="center" style={{ color: "rgba(255,255,255,0.78)", marginTop: 4, maxWidth: 280 }}>

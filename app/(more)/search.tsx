@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
+import { compImage } from "@/lib/competition";
 import {
   View,
   TextInput,
@@ -312,14 +313,14 @@ export default function UniversalSearch() {
                   <View
                     style={{
                       width: 64,
-                      height: 64,
+                      height: 80,
                       borderRadius: 14,
                       overflow: "hidden",
                       backgroundColor: "#1e202c",
                     }}
                   >
                     <AppImage
-                      uri={comp.image_url || comp.banner_url}
+                      uri={compImage(comp)}
                       style={{ width: "100%", height: "100%" }}
                     />
                   </View>

@@ -1,24 +1,27 @@
 import React, { useState } from "react";
-import { View, Pressable } from "react-native";
+import { View, Pressable, StyleSheet } from "react-native";
 import { Link, useLocalSearchParams, useRouter } from "expo-router";
-import { ArrowRight, Eye, EyeOff, Ticket, ShieldCheck, Sparkles, Fingerprint } from "lucide-react-native";
+import { ArrowRight, Eye, EyeOff, Fingerprint } from "lucide-react-native";
 import { AuthShell } from "@/components/AuthShell";
 import { Alert, Button, Field, Input, Txt } from "@/components/ui";
 import { useAlert } from "@/components/Popup";
 import { useTheme } from "@/theme/ThemeProvider";
 import { useSession } from "@/context/Session";
 import { ApiError, tokenStore } from "@/lib/api";
-import { useGoogleAuth, googleConfigured } from "@/lib/googleAuth";
+import { useGoogleAuth, googleVisible } from "@/lib/googleAuth";
+import { GoogleMark } from "@/components/GoogleMark";
 import { passkeyAvailable, signInWithPasskey, PasskeyUnavailable } from "@/lib/passkey";
 
 export default function Login() {
   const { c } = useTheme();
   const router = useRouter();
   const { loginUser, refreshUser } = useSession();
-  const google = useGoogleAuth(async (tok) => {
+  const google = useGoogleAuth(async (tok, requiresProfile) => {
     await tokenStore.setUser(tok);
     await refreshUser();
-    if (next) router.replace(next as any);
+    // first Google sign-in: the backend needs phone / DOB / address before anything else
+    if (requiresProfile) router.replace("/(auth)/complete-profile");
+    else if (next) router.replace(next as any);
     else if (router.canGoBack()) router.back();
     else router.replace("/(user)");
   });
@@ -72,9 +75,9 @@ export default function Login() {
   };
 
   return (
-    <AuthShell eyebrow="Welcome back" title="Sign in" subtitle="Access your tickets, bookings and certificates." seed={1}>
+    <AuthShell eyebrow="Welcome back" title="Sign in" subtitle="Pick up where the show left off." seed={1} parallax
+      video={require("../../assets/Video/auth-hero.mp4")} poster={require("../../assets/Video/auth-hero-poster.jpg")}>
       <View style={{ gap: 18 }}>
-
         <Field label="Email address" error={errors.email} required>
           <Input value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoComplete="email" placeholder="you@example.com" invalid={!!errors.email} />
         </Field>
@@ -94,44 +97,30 @@ export default function Login() {
 
         <Button label="Sign in" onPress={submit} loading={loading} size="lg" full iconRight={<ArrowRight size={18} color={c.onAccent} />} />
 
+        {googleVisible || passkeyAvailable() ? (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 14, marginVertical: 2 }}>
+            <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: c.border }} />
+            <Txt size={11} font="monoMed" tone="subtle" tracking={2.4}>OR</Txt>
+            <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: c.border }} />
+          </View>
+        ) : null}
+
+        {googleVisible ? (
+          <Button label="Continue with Google" variant="outline" full size="lg" loading={google.busy} icon={<GoogleMark size={20} />} onPress={google.signIn} />
+        ) : null}
+        {google.error ? <Alert tone="error">{google.error}</Alert> : null}
+
         {passkeyAvailable() ? (
-          <Button label="Sign in with a passkey" variant="outline" full size="lg" loading={pkBusy} onPress={passkeySignIn} icon={<Fingerprint size={18} color={c.fg} />} />
+          <Button label="Use a passkey" variant="outline" full size="lg" loading={pkBusy} onPress={passkeySignIn} icon={<Fingerprint size={18} color={c.fg} />} />
         ) : null}
 
-        {googleConfigured ? (
-          <>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-              <View style={{ flex: 1, height: 1, backgroundColor: c.border }} />
-              <Txt size={11.5} font="monoMed" tone="subtle" tracking={2}>OR</Txt>
-              <View style={{ flex: 1, height: 1, backgroundColor: c.border }} />
-            </View>
-            <Button label="Continue with Google" variant="outline" full size="lg" loading={google.busy} onPress={google.signIn} />
-            {google.error ? <Alert tone="error">{google.error}</Alert> : null}
-          </>
-        ) : null}
-
-        <View style={{ flexDirection: "row", justifyContent: "center", gap: 6, marginTop: 2 }}>
-          <Txt size={13.5} tone="muted">New here?</Txt>
+        <View style={{ flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6, marginTop: 10, paddingVertical: 6 }}>
+          <Txt size={14} tone="muted">New here?</Txt>
           <Link href="/(auth)/register" asChild>
-            <Pressable>
-              <Txt size={13.5} font="sansBold" tone="accent">Create an account</Txt>
+            <Pressable hitSlop={10}>
+              <Txt size={14} font="sansBold" tone="accent">Create an account</Txt>
             </Pressable>
           </Link>
-        </View>
-
-        <View style={{ gap: 12, marginTop: 14 }}>
-          {[
-            { Icon: Ticket, t: "All your QR passes in one place" },
-            { Icon: ShieldCheck, t: "Secure, verified bookings" },
-            { Icon: Sparkles, t: "Early access to new drops" },
-          ].map((f) => (
-            <View key={f.t} style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-              <View style={{ width: 34, height: 34, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.surface2 }}>
-                <f.Icon size={16} color={c.accent} />
-              </View>
-              <Txt size={13.5} tone="muted">{f.t}</Txt>
-            </View>
-          ))}
         </View>
       </View>
     </AuthShell>

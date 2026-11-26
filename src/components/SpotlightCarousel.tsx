@@ -34,7 +34,8 @@ import { playNavFeedback } from "@/lib/sound";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 const CARD_W = Math.round(SCREEN_W * 0.74);
-const CARD_H = Math.round(CARD_W * 1.30);
+// 4:5 — the 736×920 competition poster fits edge to edge, nothing cropped
+const CARD_H = Math.round(CARD_W * (920 / 736));
 const SPACING = 14;
 const ITEM_FULL_WIDTH = CARD_W + SPACING;
 const SIDE_PEEK = Math.round((SCREEN_W - CARD_W) / 2);
@@ -292,7 +293,7 @@ export function SpotlightCarousel({
         }}
       />
 
-      {/* Title & Tagline below active card (Centered, matching screenshot) */}
+      {/* Title below active card (Centered) */}
       <View style={styles.infoWrapper}>
         <Txt
           size={19}
@@ -301,15 +302,6 @@ export function SpotlightCarousel({
           style={styles.title}
         >
           {currentEvent?.title || "Upcoming Spotlight"}
-        </Txt>
-
-        <Txt
-          size={13}
-          font="sansMed"
-          numberOfLines={2}
-          style={styles.subtitle}
-        >
-          {currentSubtitle}
         </Txt>
       </View>
 
